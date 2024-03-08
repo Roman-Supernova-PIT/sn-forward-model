@@ -4,9 +4,9 @@ Model a supernova plus galaxy through a sequence of images in filter and time.
 
 ## Planned Development Order
 1. [ ] Basic model of point source (star)
-2. [ ] Basic model of isolated supernova
-3. [ ] Model of galaxy
-4. [ ] Supernova plus galaxy
+2. [X] Basic model of isolated supernova
+3. [X] Model of galaxy
+4. [X] Supernova plus galaxy
 5. [ ] SED model of supernova from a lightcurve template (e.g., SALT-3).
 
 ## Data Source
@@ -17,8 +17,9 @@ https://arxiv.org/abs/2204.13553
 https://doi.org/10.1093/mnras/stad1652
 https://roman.ipac.caltech.edu/sims/SN_Survey_Image_sim.html
 
-Next step is to use the 2023/2024 Roman/Rubin by Troxel et al.
+This current repository uses the 2023/2024 Roman/Rubin by Troxel et al.
 
+## Method
 Uses AstroPhot, written by Connor Stone, 
 [citation]
 "ASTROPHOT: fitting everything everywhere all at once in astronomical images"
