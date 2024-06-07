@@ -92,6 +92,11 @@ def get_visit_band_sca_for_object_id(object_id):
     For now this returns the results from a dict that was manually computed
     """
     visit_band_sca = {
+        41024123441: {
+            "visit": [1394, 8340, 14088, 29499, 36445, 42193],
+            "band": ["H158", "H158", "H158", "H158", "H158", "H158"],
+            "sca": [9, 17, 8, 9, 17, 8],
+        },
         30328322: {
             "visit": [36445, 1394, 14088, 8340, 42193, 29499],
             "band": ["H158", "H158", "H158", "H158", "H158", "H158"],
