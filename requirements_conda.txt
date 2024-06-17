@@ -1,0 +1,16 @@
+# This file may be used to create an environment using:
+# $ conda create --name astrophot -c conda-forge --file requirements_conda.txt
+# platform: linux-64
+astropy
+cudatoolkit
+h5py
+ipykernel
+jupyter
+matplotlib
+numpy
+pandas
+pyyaml
+pyarrow
+scipy
+requests
+tqdm

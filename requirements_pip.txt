@@ -1,0 +1,9 @@
+# These packages are not available through conda
+# and will need to be pip installed.
+# Also need to manually download and install the webbpsf data files
+# https://webbpsf.readthedocs.io/en/latest/installation.html#installing-the-required-data-files
+#
+astrophot
+pyro-ppl
+torch
+webbpsf
