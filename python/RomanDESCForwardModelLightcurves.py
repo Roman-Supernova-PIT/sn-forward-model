@@ -981,13 +981,14 @@ def run(
 
 
 if __name__ == "__main__":
-    transient_id = 30328322
+    # transient_id = 30328322
     # transient_id = 20202893
     # transient_id = 30005877
     # transient_id = 30300185
+    # transient_id = 41024123441
 
     ## This one fails to find isophote in initialization.
     # transient_id = 50006502
 
-    transient_id = 41024123441
+    transient_id = sys.argv[1]
     run(transient_id)
