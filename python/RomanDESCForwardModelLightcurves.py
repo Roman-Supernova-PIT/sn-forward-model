@@ -345,6 +345,7 @@ def run(
     DATASET="RomanDESC",
     DATADIR=os.path.join(os.path.dirname(sys.argv[0]), "..", "data/RomanDESC"),
     npix=75,
+    verbose=False,
 ):
 
     config = Config(DATASET)
@@ -880,11 +881,10 @@ def run(
 
     # In[ ]:
 
-    lightcurve
+    if verbose:
+        print(lightcurve)
 
-    # In[ ]:
-
-    lightcurve.write(f"lightcurve_{transient_id}.csv")
+    lightcurve.write(f"lightcurve_{transient_id}.csv", overwrite=True)
 
     # In[ ]:
 
