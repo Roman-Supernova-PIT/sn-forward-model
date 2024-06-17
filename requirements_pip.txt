@@ -7,3 +7,5 @@ astrophot
 pyro-ppl
 torch
 webbpsf
+# Requirements for linting and CI
+black
