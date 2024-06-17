@@ -5,7 +5,7 @@
 # RomanDESC SN Simulation modeling with AstroPhot
 
 Author: Michael Wood-Vasey <wmwv@pitt.edu>  
-Last Verified to run: 2024-03-08
+Last Verified to run: 2024-06-17
 
 Use the [AstroPhot](https://autostronomy.github.io/AstroPhot/) package to model lightcurve of SN in Roman+Rubin DESC simulations
 
@@ -17,7 +17,7 @@ torch
 Major TODO:
   * [~] Start utility support Python file as developing package
   * [ ] Write tests for package.  Decide on test data.
-  * [ ] Write logic into functions that can be more readily called from Python script
+  * [~] Write logic into functions that can be more readily called from Python script
   * [~] Implement SIP WCS in AstroPhot to deal with slight variation in object positions
     - Instead implemented a per-image (but not per object) astrometric shift.
 
@@ -28,18 +28,24 @@ You can create this environment with:
 
 ```
 conda create --name astrophot -c conda-forge python astropy cudatoolkit h5py \
-  ipykernel jupyter matplotlib numpy pandas pyyaml pyarrow scipy requests tqdm \
+  ipykernel jupyter matplotlib numpy pandas pyyaml pyarrow scipy requests tqdm
   webbpsf
 conda activate astrophot
-pip install astrophot pyro-ppl torch
+pip install astrophot pyro-ppl torch webbpsf
 ipython kernel install --user --name=astrophot
 ```
+You then have to separately install the webbpsf data files
+https://webbpsf.readthedocs.io/en/latest/installation.html#installing-the-required-data-files
+
+# And declare the WEBBPSF data directory with
+export WEBBPSF_PATH=/pscratch/sd/w/wmwv/RomanDESC/webbpsf-data
 
 This requires astrophot >= v0.15.2
 """
 
 import os
 import re
+import sys
 from typing import Optional
 
 import matplotlib.pyplot as plt
@@ -54,34 +60,54 @@ from astropy.wcs import WCS
 import astrophot as ap
 import webbpsf
 
-DATASET = "RomanDESC"
-DATADIR = "../data/RomanDESC"
 
+class Config:
+    # These are 4k x 4k images
+    pixel_scale = {"DC2": 0.2, "RomanDESC": 0.11}  # "/pixel
+    fwhm = {"DC2": 0.6, "RomanDESC": 0.2}  # "
 
-# These are 4k x 4k images
-pixel_scale = {"DC2": 0.2, "RomanDESC": 0.11}  # "/pixel
-fwhm = {"DC2": 0.6, "RomanDESC": 0.2}  # "
+    # The HDU order is different between the two datasets
+    hdu_idx = {
+        "DC2": {
+            "image": 1,
+            "mask": 2,
+            "variance": 3,
+            "psfex_info": 11,
+            "psfex_data": 12,
+        },
+        "RomanDESC": {"image": 1, "mask": 3, "variance": 2},
+    }
+    # as are the FITS extension names
+    hdu_names = {
+        "DC2": {"image": "image", "mask": "mask", "variance": "variance"},
+        "RomanDESC": {"image": "SCI", "mask": "DQ", "variance": "ERR"},
+    }
+    # so we have to use a translation regardless.
 
-# The HDU order is different between the two datasets
-HDU_IDX = {
-    "DC2": {"image": 1, "mask": 2, "variance": 3, "psfex_info": 11, "psfex_data": 12},
-    "RomanDESC": {"image": 1, "mask": 3, "variance": 2},
-}
-# as are the FITS extension names
-HDU_NAMES = {
-    "DC2": {"image": "image", "mask": "mask", "variance": "variance"},
-    "RomanDESC": {"image": "SCI", "mask": "DQ", "variance": "ERR"},
-}
-# so we have to use a translation regardless.
+    # But the variance plane for the Roman images isn't actually right
+    # So we use the Image plane for the variance.
+    hdu_idx["RomanDESC"]["variance"] = hdu_idx["RomanDESC"]["image"]
+    hdu_names["RomanDESC"]["variance"] = hdu_names["RomanDESC"]["image"]
 
-# But the variance plane for the Roman images isn't actually right
-# So we use the Image plane for the variance.
-HDU_IDX["RomanDESC"]["variance"] = HDU_IDX["RomanDESC"]["image"]
-HDU_NAMES["RomanDESC"]["variance"] = HDU_NAMES["RomanDESC"]["image"]
+    # Bad pixel mask values
+    bad_pixel_bitmask = {}
+    bad_pixel_bitmask["DC2"] = 0b0
+    bad_pixel_bitmask["RomanDESC"] = 0b1
 
-# Bad pixel mask values
-bad_pixel_bitmask = {}
-bad_pixel_bitmask["RomanDESC"] = 0b1
+    all_config = {
+        "fwhm": fwhm,
+        "pixel_scale": pixel_scale,
+        "hdu_idx": hdu_idx,
+        "hdu_names": hdu_names,
+        "bad_pixel_bitmask": bad_pixel_bitmask,
+    }
+
+    def __init__(self, dataset):
+        self.fwhm = self.all_config["fwhm"][dataset]
+        self.pixel_scale = self.all_config["pixel_scale"][dataset]
+        self.hdu_idx = self.all_config["hdu_idx"][dataset]
+        self.hdu_names = self.all_config["hdu_names"][dataset]
+        self.bad_pixel_bitmask = self.all_config["bad_pixel_bitmask"][dataset]
 
 
 def get_visit_band_sca_for_object_id(object_id):
@@ -221,13 +247,13 @@ def get_roman_psf(band, sca, x, y):
 
 def make_target(
     image_filepath,
-    coord: Optional[SkyCoord] = None,
-    fwhm: float = fwhm[DATASET],
-    psf_size: int = 51,
-    pixel_scale: float = pixel_scale[DATASET],
+    coord: SkyCoord,
+    fwhm: float,
+    pixel_scale: float,
+    hdu_idx: dict,
     zeropoint: Optional[float] = None,
-    hdu_idx: dict = HDU_IDX[DATASET],
-    bad_pixel_bitmask: Optional[int] = bad_pixel_bitmask[DATASET],
+    bad_pixel_bitmask: Optional[int] = 0b0,
+    psf_size: int = 51,
     do_mask=False,
 ):
     """Make an AstroPhot target.
@@ -238,12 +264,13 @@ def make_target(
 
     coord: SkyCoord object with center of window
     fwhm: float, Full-Width at Half-Maximum in arcsec
-    psf_size: float, width of the PSF
     pixel_scale: float, "/pix
        This is used along with fwhm, psf_size to set a Gaussian PSF model
        Would be better to have an actual PSF model from the image
-    pixel_shape: (int, int), pix
+    bad_pixel_bitmask: Int.  Packed bitmask of bad pixels on image.
     zeropoint: float, calibration of counts in image.
+    psf_size: float, width of the PSF
+    do_mask: Use mask.
     """
     hdu = fits.open(image_filepath)
     header = hdu[0].header  # Primary header
@@ -313,7 +340,16 @@ def make_window_for_target(target, ra, dec, npix=75):
     return window
 
 
-def run(transient_id, npix=75):
+def run(
+    transient_id,
+    DATASET="RomanDESC",
+    DATADIR=os.path.join(os.path.dirname(sys.argv[0]), "..", "data/RomanDESC"),
+    npix=75,
+):
+
+    config = Config(DATASET)
+    print("CONFIG: ", config.hdu_idx)
+
     # Read basic info catalog
     transient_info_file = os.path.join(DATADIR, "transient_info_table.csv")
     transient_host_info_file = os.path.join(DATADIR, "transient_host_info_table.csv")
@@ -365,7 +401,15 @@ def run(transient_id, npix=75):
     print(lightcurve_truth)
 
     targets = ap.image.Target_Image_List(
-        make_target(f, coord=transient_coord) for f in image_files
+        make_target(
+            f,
+            coord=transient_coord,
+            fwhm=config.fwhm,
+            pixel_scale=config.pixel_scale,
+            hdu_idx=config.hdu_idx,
+            bad_pixel_bitmask=config.bad_pixel_bitmask,
+        )
+        for f in image_files
     )
 
     for i, target in enumerate(targets):
@@ -592,12 +636,16 @@ def run(transient_id, npix=75):
                 if model.name == model_static[model_static_band[b]].name:
                     continue
                 for parameter in ["center"]:
-                    model[parameter].value = model_static[model_static_band[b]][parameter]
+                    model[parameter].value = model_static[model_static_band[b]][
+                        parameter
+                    ]
             for b, model in zip(band, model_sn):
                 if model.name == model_sn[model_static_band[b]].name:
                     continue
                 for parameter in ["center"]:
-                    model[parameter].value = model_static[model_static_band[b]][parameter]
+                    model[parameter].value = model_static[model_static_band[b]][
+                        parameter
+                    ]
 
     # Constrain host model to be the same per band
 
