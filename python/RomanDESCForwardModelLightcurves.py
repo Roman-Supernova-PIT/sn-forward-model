@@ -216,11 +216,58 @@ def get_truth_table(truth_files, visits, transient_id):
     return truth_table
 
 
-def get_roman_psf(band, sca, x, y):
+def get_transient_info_and_host(transient_id, DATADIR):
+    # Read basic info catalog
+    transient_info_file = os.path.join(DATADIR, "transient_info_table.csv")
+    transient_host_info_file = os.path.join(DATADIR, "transient_host_info_table.csv")
+    transient_info_table = Table.read(transient_info_file, format="csv")
+    # Should eventually shift to a different way of tracking hosts
+    # For now just reformatting into the previous way.
+    transient_id_host_per_row = Table.read(transient_host_info_file, format="csv")
+    transient_id_host = {}
+    for r in np.unique(transient_id_host_per_row["transient_id"]):
+        (idx,) = np.where(transient_id_host_per_row["transient_id"] == r)
+        transient_id_host[r] = {
+            "object_id": transient_id_host_per_row[idx]["object_id"],
+            "ra": transient_id_host_per_row[idx]["ra"],
+            "dec": transient_id_host_per_row[idx]["dec"],
+        }
+
+    transient_info_table.add_index("transient_id")
+
+    transient_info = transient_info_table.loc[transient_id]
+    transient_host = transient_id_host[transient_id]
+
+    return transient_info, transient_host
+
+
+def get_image_and_truth_files(transient_id, DATASET, DATADIR):
+    # Get list of images (visit, band, sca) that contain object position
+    image_info = get_visit_band_sca_for_object_id(transient_id)
+
+    # Define and load images and truth
+    image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{sca}.fits.gz"
+    truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{sca}.txt"
+
+    image_file_basenames = []
+    truth_file_basenames = []
+    for v, b, s in zip(image_info["visit"], image_info["band"], image_info["sca"]):
+        image_file_basenames.append(image_file_format.format(visit=v, band=b, sca=s))
+        truth_file_basenames.append(truth_file_for_image_format.format(visit=v, band=b, sca=s))
+
+    image_files = [os.path.join(DATADIR, bn) for bn in image_file_basenames]
+    truth_files = [os.path.join(DATADIR, bn) for bn in truth_file_basenames]
+
+    return image_info, image_files, truth_files
+
+
+def get_roman_psf(band, sca, x, y, ext_name="DET_SAMP"):
     """
     Return the Roman WFI PSF for the given band, sca at the detector position x, y
 
     Use `webbpsf` package for band, sca, x, y and SED.
+
+    ext_name: ["OVERSAMP", "DET_SAMP", "OVERDIST", "DET_DIST"]
 
     https://roman-docs.stsci.edu/simulation-tools-handbook-home/webbpsf-for-roman/webbpsf-tutorials
     https://github.com/spacetelescope/webbpsf/blob/develop/notebooks/WebbPSF-Roman_Tutorial.ipynb
@@ -244,9 +291,10 @@ def get_roman_psf(band, sca, x, y):
     wfi.filter = standard_band_names[band]
     wfi.detector = f"SCA{sca:02d}"
     wfi.detector_position = (x, y)
+    wfi.options["parity"] = "odd"
 
     psf_hdu = wfi.calc_psf()
-    psf = psf_hdu["DET_SAMP"].data
+    psf = psf_hdu[ext_name].data
 
     return psf
 
@@ -346,51 +394,6 @@ def make_window_for_target(target, ra, dec, npix=75):
     return window
 
 
-def get_transient_info_and_host(transient_id, DATADIR):
-    # Read basic info catalog
-    transient_info_file = os.path.join(DATADIR, "transient_info_table.csv")
-    transient_host_info_file = os.path.join(DATADIR, "transient_host_info_table.csv")
-    transient_info_table = Table.read(transient_info_file, format="csv")
-    # Should eventually shift to a different way of tracking hosts
-    # For now just reformatting into the previous way.
-    transient_id_host_per_row = Table.read(transient_host_info_file, format="csv")
-    transient_id_host = {}
-    for r in np.unique(transient_id_host_per_row["transient_id"]):
-        (idx,) = np.where(transient_id_host_per_row["transient_id"] == r)
-        transient_id_host[r] = {
-            "object_id": transient_id_host_per_row[idx]["object_id"],
-            "ra": transient_id_host_per_row[idx]["ra"],
-            "dec": transient_id_host_per_row[idx]["dec"],
-        }
-
-    transient_info_table.add_index("transient_id")
-
-    transient_info = transient_info_table.loc[transient_id]
-    transient_host = transient_id_host[transient_id]
-
-    return transient_info, transient_host
-
-
-def get_image_and_truth_files(transient_id, DATASET, DATADIR):
-    # Get list of images (visit, band, sca) that contain object position
-    image_info = get_visit_band_sca_for_object_id(transient_id)
-
-    # Define and load images and truth
-    image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{sca}.fits.gz"
-    truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{sca}.txt"
-
-    image_file_basenames = []
-    truth_file_basenames = []
-    for v, b, s in zip(image_info["visit"], image_info["band"], image_info["sca"]):
-        image_file_basenames.append(image_file_format.format(visit=v, band=b, sca=s))
-        truth_file_basenames.append(truth_file_for_image_format.format(visit=v, band=b, sca=s))
-
-    image_files = [os.path.join(DATADIR, bn) for bn in image_file_basenames]
-    truth_files = [os.path.join(DATADIR, bn) for bn in truth_file_basenames]
-
-    return image_info, image_files, truth_files
-
-
 def plot_targets(targets, windows, plot_filename=None):
     n = len(targets.image_list)
     side = int(np.sqrt(n)) + 1
@@ -438,7 +441,7 @@ def _plot_target_model_multiple(
     ax[0, 1].set_title("Model")
     ap.plots.residual_image(fig, ax[:, 2], model, window=window, flipx=True)
     ax[0, 2].set_title("Residual")
-    #    plt.show()
+
     if plot_filename is not None:
         plt.savefig(plot_filename)
 
@@ -453,7 +456,7 @@ def _plot_target_model_single(model, window=None, title=None, figsize=(16, 4)):
     ax[2].set_title("Residual")
 
 
-def plot_lightcurve(lightcurve, lightcurve_obs, lightcurve_truth, DATASET, snr_threshold=1):
+def plot_lightcurve(lightcurve, lightcurve_obs, lightcurve_truth, DATASET, snr_threshold=1, plot_filename=None):
     color_for_band = {
         "u": "purple",
         "g": "blue",
@@ -530,7 +533,8 @@ def plot_lightcurve(lightcurve, lightcurve_obs, lightcurve_truth, DATASET, snr_t
     ax.set_ylim(1, -1)
     ax.set_xlim(axes[0].get_xlim())
 
-    plt.savefig(f"lightcurve_{transient_id}.png")
+    if plot_filename is not None:
+        plt.savefig(plot_filename)
 
 
 def plot_covariance(result, targets, plot_filename=None):
@@ -567,12 +571,15 @@ def plot_covariance(result, targets, plot_filename=None):
 def run(
     transient_id,
     DATASET="RomanDESC",
-    DATADIR=os.path.join(os.path.dirname(sys.argv[0]), "..", "data/RomanDESC"),
+    DATADIR=None,
     npix=75,
     verbose=False,
     overwrite=True,
 ):
     config = Config(DATASET)
+
+    if DATADIR is None:
+        DATADIR = os.path.join(os.path.dirname(sys.argv[0]), "..", "data", DATASET),
 
     transient_info, transient_host = get_transient_info_and_host(transient_id, DATADIR)
     image_info, image_files, truth_files = get_image_and_truth_files(transient_id, DATASET, DATADIR)
