@@ -56,18 +56,15 @@ import re
 import sys
 from typing import Optional
 
+import astrophot as ap
+import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-
-import astropy.units as u
+import webbpsf
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.table import Table, join
-
 from astropy.wcs import WCS
-
-import astrophot as ap
-import webbpsf
 
 
 class Config:
