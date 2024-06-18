@@ -5,20 +5,22 @@
 # RomanDESC SN Simulation modeling with AstroPhot
 
 Author: Michael Wood-Vasey <wmwv@pitt.edu>  
-Last Verified to run: 2024-06-17
+Last Verified to run: 2024-03-18
 
-Use the [AstroPhot](https://autostronomy.github.io/AstroPhot/) package to model lightcurve of SN in Roman+Rubin DESC simulations
+Use the [AstroPhot](https://autostronomy.github.io/AstroPhot/) package to model
+the lightcurve of SN in Roman+Rubin DESC simulations
 
 Notable Requirements:  
 astrophot  
 astropy  
 torch  
+webbpsf  
 
 Major TODO:
   * [~] Start utility support Python file as developing package
   * [ ] Write tests for package.  Decide on test data.
-  * [~] Write logic into functions that can be more readily called from Python script
-  * [~] Implement SIP WCS in AstroPhot to deal with slight variation in object positions
+  * [~] Write logic into functions that can be called from Python scripts
+  * [~] Implement SIP WCS in AstroPhot to handle small variations in positions
     - Instead implemented a per-image (but not per object) astrometric shift.
 
 ## Environment
@@ -29,7 +31,6 @@ You can create this environment with:
 ```
 conda create --name astrophot -c conda-forge python astropy cudatoolkit h5py \
   ipykernel jupyter matplotlib numpy pandas pyyaml pyarrow scipy requests tqdm
-  webbpsf
 conda activate astrophot
 pip install astrophot pyro-ppl torch webbpsf
 ipython kernel install --user --name=astrophot
@@ -37,8 +38,15 @@ ipython kernel install --user --name=astrophot
 You then have to separately install the webbpsf data files
 https://webbpsf.readthedocs.io/en/latest/installation.html#installing-the-required-data-files
 
-# And declare the WEBBPSF data directory with
+You can declare the WEBBPSF data directory with, e.g.,
 export WEBBPSF_PATH=/pscratch/sd/w/wmwv/RomanDESC/webbpsf-data
+for a given session
+
+or set the `WEBBPSF_PATH` in the conda environment,
+
+```
+conda env config vars set WEBBPSF_PATH=/pscratch/sd/w/wmwv/RomanDESC/webbpsf-data
+```
 
 This requires astrophot >= v0.15.2
 """
@@ -347,7 +355,6 @@ def run(
     npix=75,
     verbose=False,
 ):
-
     config = Config(DATASET)
     print("CONFIG: ", config.hdu_idx)
 
