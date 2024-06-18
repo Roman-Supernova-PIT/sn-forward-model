@@ -536,18 +536,49 @@ def plot_lightcurve(lightcurve, lightcurve_obs, lightcurve_truth, DATASET, snr_t
     plt.savefig(f"lightcurve_{transient_id}.png")
 
 
+def plot_covariance(result, targets, plot_filename=None):
+    _, axes = plt.subplots(1, 2, 1)
+
+    plt.sca(axes[0])
+    covar = result.covariance_matrix.detach().cpu().numpy()
+    plt.imshow(
+        covar,
+        origin="lower",
+        vmin=1e-8,
+        vmax=1e-1,
+        norm="log",
+    )
+    plt.colorbar()
+
+    # Let's focus on the SN flux uncertainties:
+    # This is a little clunky because I don't have a better way of looking up
+    # the names of the parameters in the covariance matrix.
+
+    plt.sca(axes[1])
+    sn_flux_starts_at_parameter_idx = -len(targets.image_list)
+    plt.imshow(
+        covar[sn_flux_starts_at_parameter_idx:, sn_flux_starts_at_parameter_idx:],
+        origin="lower",
+        #    vmin=1e-6, vmax=1, norm="log",
+    )
+    plt.colorbar()
+
+    if plot_filename is not None:
+        plt.savefig(plot_filename)
+
+
 def run(
     transient_id,
     DATASET="RomanDESC",
     DATADIR=os.path.join(os.path.dirname(sys.argv[0]), "..", "data/RomanDESC"),
     npix=75,
     verbose=False,
+    overwrite=True,
 ):
     config = Config(DATASET)
-    print("CONFIG: ", config.hdu_idx)
 
-    transient_info, transient_host = get_transient_info_and_host(transient_id)
-    image_info, image_files, truth_files = get_image_and_truth_files(transient_id)
+    transient_info, transient_host = get_transient_info_and_host(transient_id, DATADIR)
+    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, DATASET, DATADIR)
     lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
     print(lightcurve_truth)
 
@@ -774,37 +805,41 @@ def run(
     model_filename = f"Transient_{transient_id}_AstroPhot_model.yaml"
     result.model.save(model_filename)
 
-    covar = result.covariance_matrix.detach().cpu().numpy()
-    plt.imshow(
-        covar,
-        origin="lower",
-        vmin=1e-8,
-        vmax=1e-1,
-        norm="log",
+    lightcurve_obs = make_lightcurve_from_fit(model_host_sn)
+    lightcurve_obs_filename = f"lightcurve_{transient_id}.csv"
+    if lightcurve_obs_filename is not None:
+        lightcurve_obs.write(lightcurve_obs_filename, overwrite=overwrite)
+
+    lightcurve = make_joint_lightcurve_from_obs_and_truth(lightcurve_obs, lightcurve_truth)
+
+    if verbose:
+        print(lightcurve)
+
+    plot_filename = f"lightcurve_{DATASET}_{transient_id}.png"
+    plot_lightcurve(
+        lightcurve,
+        lightcurve_obs,
+        lightcurve_truth,
+        DATASET,
+        plot_filename=plot_filename,
     )
-    plt.colorbar()
 
-    # Let's focus on the SN flux uncertainties:
-    # This is a little clunky because I don't have a better way of looking up
-    # the names of the parameters in the covariance matrix.
-
-    sn_flux_starts_at_parameter_idx = -len(targets.image_list)
-    covar = result.covariance_matrix.detach().cpu().numpy()
-    plt.imshow(
-        covar[sn_flux_starts_at_parameter_idx:, sn_flux_starts_at_parameter_idx:],
-        origin="lower",
-        #    vmin=1e-6, vmax=1, norm="log",
+    image_file_basenames = [os.path.basename(f) for f in image_files]
+    plot_filename = f"stamps_{DATASET}_{transient_id}_model.png"
+    plot_target_model(
+        model_host_sn,
+        window=windows,
+        titles=image_file_basenames,
+        plot_filename=plot_filename,
     )
-    plt.colorbar()
 
-    # In[ ]:
 
+def make_lightcurve_from_fit(model_host_sn):
+    """Takes input AstroPhot model fit and returns lightcurve."""
     sn_model_name_regex = re.compile("SN model [0-9]+")
     sn_model_names = [k for k in model_host_sn.models.keys() if sn_model_name_regex.match(k)]
 
-    # In[ ]:
-
-    filenames = [model_host_sn.models[m].target.header.filename for m in sn_model_names]
+    filenames = [os.path.basename(model_host_sn.models[m].target.header.filename) for m in sn_model_names]
     bands = [model_host_sn.models[m].target.header.band for m in sn_model_names]
     visits = [model_host_sn.models[m].target.header.visit for m in sn_model_names]
     mjds = [model_host_sn.models[m].target.header.mjd for m in sn_model_names]
@@ -858,8 +893,10 @@ def run(
     lightcurve_obs["mag"].info.format = ">7.4f"
     lightcurve_obs["mag_err"].info.format = ">7.4f"
 
-    print(lightcurve_obs)
-    print(lightcurve_truth)
+    return lightcurve_obs
+
+
+def make_joint_lightcurve_from_obs_and_truth(lightcurve_obs, lightcurve_truth):
 
     lightcurve = join(
         lightcurve_truth,
@@ -890,23 +927,7 @@ def run(
     # to get the calibrated AB-system magnitude
     lightcurve["mag_truth"] += lightcurve["sim_zptmag"]
 
-    # In[ ]:
-
-    if verbose:
-        print(lightcurve)
-
-    lightcurve.write(f"lightcurve_{transient_id}.csv", overwrite=True)
-
-    plot_lightcurve(lightcurve, lightcurve_obs, lightcurve_truth, DATASET)
-
-    image_file_basenames = [os.path.basename(f) for f in image_files]
-    plot_filename = "transient_{DATASET}_{transient_id}_model.png"
-    plot_target_model(
-        model_host_sn,
-        window=windows,
-        titles=image_file_basenames,
-        plot_filename=plot_filename,
-    )
+    return lightcurve
 
 
 if __name__ == "__main__":
@@ -919,5 +940,5 @@ if __name__ == "__main__":
     # This one fails to find isophote in initialization.
     # transient_id = 50006502
 
-    transient_id = sys.argv[1]
+    transient_id = int(sys.argv[1])
     run(transient_id)
