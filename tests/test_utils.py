@@ -42,7 +42,6 @@ def test_config():
     assert dc2_config.hdu_idx["variance"] == 3
 
     roman_config = Config("RomanDESC")
-    print(roman_config.hdu_idx)
     assert roman_config.hdu_idx["mask"] == 3
 
 
@@ -62,8 +61,6 @@ def test_get_image_and_truth_files():
         transient_id, DATASET, DATADIR
     )
 
-    print(image_info)
-    print(image_files)
     assert len(image_info["visit"]) == len(image_files)
     assert len(truth_files) == 6
 
@@ -90,6 +87,5 @@ def test_get_transient_info_and_host():
 
     transient_info, transient_host = get_transient_info_and_host(transient_id, DATADIR)
 
-    print(transient_info)
-    assert len(transient_info["ra"]) == 1
-    assert transient_host["ra"] == 5
+    assert transient_info["ra"] == 8.5296134
+    assert len(transient_host["ra"]) == 5
