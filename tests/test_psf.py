@@ -1,3 +1,6 @@
+import os, sys
+import numpy as np
+
 def test_roman_psf():
     from RomanDESCForwardModelLightcurves import get_roman_psf
 
@@ -6,5 +9,70 @@ def test_roman_psf():
     x = 200
     y = 400
 
-    psf = get_roman_psf(band, sca, x, y)
+    # Make sure we get get each of the extensions
+    # And check that they have the right relative size.
+    psf = get_roman_psf(band, sca, x, y, ext_name="OVERSAMP")
+    assert psf.shape == (180, 180)
+
+    psf = get_roman_psf(band, sca, x, y, ext_name="DET_SAMP")
     assert psf.shape == (45, 45)
+
+    psf = get_roman_psf(band, sca, x, y, ext_name="OVERDIST")
+    assert psf.shape == (180, 180)
+
+    psf = get_roman_psf(band, sca, x, y, ext_name="DET_DIST")
+    assert psf.shape == (45, 45)
+
+
+def test_config():
+    """Do we get a Config for known DATASETs?"""
+    from RomanDESCForwardModelLightcurves import Config
+
+    dc2_config = Config("DC2")
+    assert dc2_config.hdu_idx["image"] == 1
+    assert dc2_config.hdu_idx["variance"] == 3
+
+    roman_config = Config("RomanDESC")
+    print(roman_config.hdu_idx)
+    assert roman_config.hdu_idx["mask"] == 3
+
+
+def test_get_visit_band_sca_for_object_id():
+    """Do we get information back for a given transient?"""
+    from RomanDESCForwardModelLightcurves import get_visit_band_sca_for_object_id
+
+    transient_id = 30328322
+    visit_band_sca = get_visit_band_sca_for_object_id(transient_id)
+    assert visit_band_sca["sca"][0] == 17
+
+
+def test_get_image_and_truth_files():
+    """Do we get image and truth files back for a given transient?"""
+    from RomanDESCForwardModelLightcurves import get_image_and_truth_files
+
+    DATASET = "RomanDESC"
+    DATADIR = os.path.join(os.path.dirname("__file__"), "..", "data", DATASET)
+
+    transient_id = 50006502
+    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, DATASET, DATADIR)
+
+    print(image_info)
+    print(image_files)
+    assert len(image_info["visit"]) == len(image_files)
+    assert len(truth_files) == 6
+
+
+def test_get_truth_table():
+    """Do we get a truth table for a given transient?"""
+    from RomanDESCForwardModelLightcurves import get_image_and_truth_files, get_truth_table
+
+    transient_id = 50006502
+    DATASET = "RomanDESC"
+    DATADIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
+
+    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, DATASET, DATADIR)
+
+    truth_table = get_truth_table(truth_files, image_info["visit"], transient_id)
+
+    assert len(truth_table) == 5
+    assert np.max(truth_table["flux"]) > 0
