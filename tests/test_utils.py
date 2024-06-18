@@ -8,6 +8,9 @@ from RomanDESCForwardModelLightcurves import (Config,
                                               get_truth_table,
                                               get_visit_band_sca_for_object_id)
 
+DATASET = "RomanDESC"
+DATADIR = os.path.join(os.path.dirname(__file__), "data", DATASET)
+
 
 def test_roman_psf():
 
@@ -54,9 +57,6 @@ def test_get_visit_band_sca_for_object_id():
 def test_get_image_and_truth_files():
     """Do we get image and truth files back for a given transient?"""
 
-    DATASET = "RomanDESC"
-    DATADIR = os.path.join(os.path.dirname("__file__"), "..", "data", DATASET)
-
     transient_id = 50006502
     image_info, image_files, truth_files = get_image_and_truth_files(
         transient_id, DATASET, DATADIR
@@ -72,8 +72,6 @@ def test_get_truth_table():
     """Do we get a truth table for a given transient?"""
 
     transient_id = 50006502
-    DATASET = "RomanDESC"
-    DATADIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
 
     image_info, image_files, truth_files = get_image_and_truth_files(
         transient_id, DATASET, DATADIR
@@ -89,11 +87,9 @@ def test_get_transient_info_and_host():
     """Do we get information back on a transient and its host."""
 
     transient_id = 50006502
-    DATASET = "RomanDESC"
-    DATADIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
 
     transient_info, transient_host = get_transient_info_and_host(transient_id, DATADIR)
 
     print(transient_info)
-    assert transient_info["ra"] == 1
+    assert len(transient_info["ra"]) == 1
     assert transient_host["ra"] == 5
