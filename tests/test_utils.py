@@ -1,8 +1,15 @@
-import os, sys
+import os
+
 import numpy as np
+from RomanDESCForwardModelLightcurves import (Config,
+                                              get_image_and_truth_files,
+                                              get_roman_psf,
+                                              get_transient_info_and_host,
+                                              get_truth_table,
+                                              get_visit_band_sca_for_object_id)
+
 
 def test_roman_psf():
-    from RomanDESCForwardModelLightcurves import get_roman_psf
 
     band = "H158"
     sca = 17
@@ -26,7 +33,6 @@ def test_roman_psf():
 
 def test_config():
     """Do we get a Config for known DATASETs?"""
-    from RomanDESCForwardModelLightcurves import Config
 
     dc2_config = Config("DC2")
     assert dc2_config.hdu_idx["image"] == 1
@@ -39,7 +45,6 @@ def test_config():
 
 def test_get_visit_band_sca_for_object_id():
     """Do we get information back for a given transient?"""
-    from RomanDESCForwardModelLightcurves import get_visit_band_sca_for_object_id
 
     transient_id = 30328322
     visit_band_sca = get_visit_band_sca_for_object_id(transient_id)
@@ -48,13 +53,14 @@ def test_get_visit_band_sca_for_object_id():
 
 def test_get_image_and_truth_files():
     """Do we get image and truth files back for a given transient?"""
-    from RomanDESCForwardModelLightcurves import get_image_and_truth_files
 
     DATASET = "RomanDESC"
     DATADIR = os.path.join(os.path.dirname("__file__"), "..", "data", DATASET)
 
     transient_id = 50006502
-    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, DATASET, DATADIR)
+    image_info, image_files, truth_files = get_image_and_truth_files(
+        transient_id, DATASET, DATADIR
+    )
 
     print(image_info)
     print(image_files)
@@ -64,15 +70,30 @@ def test_get_image_and_truth_files():
 
 def test_get_truth_table():
     """Do we get a truth table for a given transient?"""
-    from RomanDESCForwardModelLightcurves import get_image_and_truth_files, get_truth_table
 
     transient_id = 50006502
     DATASET = "RomanDESC"
     DATADIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
 
-    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, DATASET, DATADIR)
+    image_info, image_files, truth_files = get_image_and_truth_files(
+        transient_id, DATASET, DATADIR
+    )
 
     truth_table = get_truth_table(truth_files, image_info["visit"], transient_id)
 
     assert len(truth_table) == 5
     assert np.max(truth_table["flux"]) > 0
+
+
+def test_get_transient_info_and_host():
+    """Do we get information back on a transient and its host."""
+
+    transient_id = 50006502
+    DATASET = "RomanDESC"
+    DATADIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
+
+    transient_info, transient_host = get_transient_info_and_host(transient_id, DATADIR)
+
+    print(transient_info)
+    assert transient_info["ra"] == 1
+    assert transient_host["ra"] == 5
