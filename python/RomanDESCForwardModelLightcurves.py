@@ -4,17 +4,17 @@
 """
 # RomanDESC SN Simulation modeling with AstroPhot
 
-Author: Michael Wood-Vasey <wmwv@pitt.edu>  
+Author: Michael Wood-Vasey <wmwv@pitt.edu>
 Last Verified to run: 2024-03-18
 
 Use the [AstroPhot](https://autostronomy.github.io/AstroPhot/) package to model
 the lightcurve of SN in Roman+Rubin DESC simulations
 
-Notable Requirements:  
-astrophot  
-astropy  
-torch  
-webbpsf  
+Notable Requirements:
+astrophot
+astropy
+torch
+webbpsf
 
 Major TODO:
   * [~] Start utility support Python file as developing package
@@ -62,7 +62,8 @@ import numpy as np
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
-from astropy.table import Table
+from astropy.table import Table, join
+
 from astropy.wcs import WCS
 
 import astrophot as ap
@@ -348,16 +349,7 @@ def make_window_for_target(target, ra, dec, npix=75):
     return window
 
 
-def run(
-    transient_id,
-    DATASET="RomanDESC",
-    DATADIR=os.path.join(os.path.dirname(sys.argv[0]), "..", "data/RomanDESC"),
-    npix=75,
-    verbose=False,
-):
-    config = Config(DATASET)
-    print("CONFIG: ", config.hdu_idx)
-
+def get_transient_info_and_host(transient_id, DATADIR):
     # Read basic info catalog
     transient_info_file = os.path.join(DATADIR, "transient_info_table.csv")
     transient_host_info_file = os.path.join(DATADIR, "transient_host_info_table.csv")
@@ -378,523 +370,93 @@ def run(
 
     transient_info = transient_info_table.loc[transient_id]
     transient_host = transient_id_host[transient_id]
-    transient_coord = SkyCoord(
-        transient_info["ra"], transient_info["dec"], unit=u.degree
-    )
 
+    return transient_info, transient_host
+
+
+def get_image_and_truth_files(transient_id, DATASET, DATADIR):
     # Get list of images (visit, band, sca) that contain object position
     image_info = get_visit_band_sca_for_object_id(transient_id)
 
     # Define and load images and truth
-    image_file_format = (
-        "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{sca}.fits.gz"
-    )
-    truth_file_for_image_format = (
-        "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{sca}.txt"
-    )
+    image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{sca}.fits.gz"
+    truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{sca}.txt"
 
     image_file_basenames = []
     truth_file_basenames = []
     for v, b, s in zip(image_info["visit"], image_info["band"], image_info["sca"]):
         image_file_basenames.append(image_file_format.format(visit=v, band=b, sca=s))
-        truth_file_basenames.append(
-            truth_file_for_image_format.format(visit=v, band=b, sca=s)
-        )
+        truth_file_basenames.append(truth_file_for_image_format.format(visit=v, band=b, sca=s))
 
     image_files = [os.path.join(DATADIR, bn) for bn in image_file_basenames]
     truth_files = [os.path.join(DATADIR, bn) for bn in truth_file_basenames]
 
-    lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
+    return image_info, image_files, truth_files
 
-    print(lightcurve_truth)
 
-    targets = ap.image.Target_Image_List(
-        make_target(
-            f,
-            coord=transient_coord,
-            fwhm=config.fwhm,
-            pixel_scale=config.pixel_scale,
-            hdu_idx=config.hdu_idx,
-            bad_pixel_bitmask=config.bad_pixel_bitmask,
-        )
-        for f in image_files
-    )
-
-    for i, target in enumerate(targets):
-        target.header.visit = image_info["visit"][i]
-
-    windows = [
-        make_window_for_target(t, transient_info["ra"], transient_info["dec"], npix)
-        for t in targets
-    ]
-
+def plot_targets(targets, windows, plot_filename=None):
     n = len(targets.image_list)
     side = int(np.sqrt(n)) + 1
     fig, ax = plt.subplots(side, side, figsize=(3 * side, 3 * side))
 
     for i in range(n):
-        ap.plots.target_image(
-            fig, ax.ravel()[i], targets[i], window=windows[i], flipx=True
-        )
+        ap.plots.target_image(fig, ax.ravel()[i], targets[i], window=windows[i], flipx=True)
 
-    # plt.show()
-    plt.savefig(f"transient_{DATASET}_{transient_id}_stamps.png")
+    if plot_filename is not None:
+        plt.savefig(plot_filename)
 
-    # The coordinate axes are in arcseconds, but in the local relative coordinate system for each image.  AstroPhot used the pixel scale to translate pixels -> arcsec.
 
-    # Translate SN and host positions to projection plane positions for target.  By construction of our targets, this is in the same projection plane position.
-
-    # In[ ]:
-
-    transient_xy = targets[0].world_to_plane(
-        transient_info["ra"], transient_info["dec"]
-    )
-    if len(transient_host["ra"]) > 1:
-        host_xy = [
-            targets[0].world_to_plane(r, d)
-            for r, d in zip(transient_host["ra"], transient_host["dec"])
-        ]
+# We divide up because "model_image" expects a single axis object if single image
+# while it wants an array of axis objects if there are multiple images in the image list
+# model_image will not accept a one-element array if there is no image_list
+def plot_target_model(model, **kwargs):
+    if hasattr(model.target, "image_list"):
+        _plot_target_model_multiple(model, **kwargs)
     else:
-        host_xy = [
-            targets[0].world_to_plane(transient_host["ra"], transient_host["dec"])
-        ]
+        _plot_target_model_single(model, **kwargs)
 
-    # ### Plotting Convenience Function
 
-    # In[ ]:
+def _plot_target_model_multiple(
+    model,
+    window=None,
+    titles=None,
+    base_figsize=(12, 4),
+    figsize=None,
+    plot_filename=None,
+):
+    n = len(model.target.image_list)
+    if figsize is None:
+        figsize = (base_figsize[0], n * base_figsize[1])
+    fig, ax = plt.subplots(n, 3, figsize=figsize)
+    # Would like to just call this, but window isn't parsed as a list
+    # https://github.com/Autostronomy/AstroPhot/issues/142
+    #    ap.plots.target_image(fig, ax[:, 0], model.target, window=window, flipx=True)
+    for axt, mod, win in zip(ax[:, 0], model.target.image_list, window):
+        ap.plots.target_image(fig, axt, mod, win, flipx=True)
 
-    # We divide up because "model_image" expects a single axis object if single image
-    # while it wants an array of axis objects if there are multiple images in the image list
-    # model_image will not accept a one-element array if there is no image_list
-    def plot_target_model(model, **kwargs):
-        if hasattr(model.target, "image_list"):
-            _plot_target_model_multiple(model, **kwargs)
-        else:
-            _plot_target_model_single(model, **kwargs)
-
-    def _plot_target_model_multiple(
-        model,
-        window=None,
-        titles=None,
-        base_figsize=(12, 4),
-        figsize=None,
-        plot_filename=None,
-    ):
-        n = len(model.target.image_list)
-        if figsize is None:
-            figsize = (base_figsize[0], n * base_figsize[1])
-        fig, ax = plt.subplots(n, 3, figsize=figsize)
-        # Would like to just call this, but window isn't parsed as a list
-        # https://github.com/Autostronomy/AstroPhot/issues/142
-        #    ap.plots.target_image(fig, ax[:, 0], model.target, window=window, flipx=True)
-        for axt, mod, win in zip(ax[:, 0], model.target.image_list, window):
-            ap.plots.target_image(fig, axt, mod, win, flipx=True)
-
-        if titles is not None:
-            for i, title in enumerate(titles):
-                ax[i, 0].set_title(title)
-        ap.plots.model_image(fig, ax[:, 1], model, window=window, flipx=True)
-        ax[0, 1].set_title("Model")
-        ap.plots.residual_image(fig, ax[:, 2], model, window=window, flipx=True)
-        ax[0, 2].set_title("Residual")
-        #    plt.show()
-        if plot_filename is not None:
-            plt.savefig(plot_filename)
-
-    def _plot_target_model_single(model, window=None, title=None, figsize=(16, 4)):
-        fig, ax = plt.subplots(1, 3, figsize=figsize)
-        ap.plots.target_image(fig, ax[0], model.target, window=window, flipx=True)
-        ax[0].set_title(title)
-        ap.plots.model_image(fig, ax[1], model, window=window, flipx=True)
-        ax[1].set_title("Model")
-        ap.plots.residual_image(fig, ax[2], model, window=window, flipx=True)
-        ax[2].set_title("Residual")
-
+    if titles is not None:
+        for i, title in enumerate(titles):
+            ax[i, 0].set_title(title)
+    ap.plots.model_image(fig, ax[:, 1], model, window=window, flipx=True)
+    ax[0, 1].set_title("Model")
+    ap.plots.residual_image(fig, ax[:, 2], model, window=window, flipx=True)
+    ax[0, 2].set_title("Residual")
     #    plt.show()
+    if plot_filename is not None:
+        plt.savefig(plot_filename)
 
-    # ### Jointly fit model across images
 
-    # In[ ]:
+def _plot_target_model_single(model, window=None, title=None, figsize=(16, 4)):
+    fig, ax = plt.subplots(1, 3, figsize=figsize)
+    ap.plots.target_image(fig, ax[0], model.target, window=window, flipx=True)
+    ax[0].set_title(title)
+    ap.plots.model_image(fig, ax[1], model, window=window, flipx=True)
+    ax[1].set_title("Model")
+    ap.plots.residual_image(fig, ax[2], model, window=window, flipx=True)
+    ax[2].set_title("Residual")
 
-    live_sn = [
-        (target.header.mjd > transient_info["mjd_start"])
-        and (target.header.mjd < transient_info["mjd_end"])
-        for target in targets
-    ]
 
-    # In[ ]:
-
-    model_sky = []
-    model_static = []
-    model_sn = []
-
-    # The RomanDESC images are "raw" science images with sky.
-    FIT_SKY = {"RomanDESC": True}
-    FIT_HOST = True
-    FIT_SN = True
-    CORRECT_SIP = True
-
-    if FIT_SKY[DATASET]:
-        for i, (target, window) in enumerate(zip(targets, windows)):
-            model_sky.append(
-                ap.models.AstroPhot_Model(
-                    name=f"sky model {i}",
-                    model_type="flat sky model",
-                    target=target,
-                    window=window,
-                )
-            )
-
-    # We might have multiple hosts in the scene.
-    # Potentially eventually multiple stars
-    if FIT_HOST:
-        for i, hxy in enumerate(host_xy):
-            model_static_band = {}
-            this_object_model = []
-
-            for j, (b, target, window) in enumerate(
-                zip(image_info["band"], targets, windows)
-            ):
-                this_object_model.append(
-                    ap.models.AstroPhot_Model(
-                        name=f"galaxy model {i, j}",
-                        model_type="sersic galaxy model",
-                        target=target,
-                        psf_mode="full",
-                        parameters={"center": hxy},
-                        window=window,
-                    )
-                )
-                # I think this assignment copies reference that points to same underlying object
-                # in 'model_host' and 'model_host_band'
-                # The initialization step assumes that the reference model gets initialized first.
-                # So we just mark use the first model in the list of each band.
-                if b not in model_static_band.keys():
-                    model_static_band[b] = j
-
-            # Define static by locking all parameters to the first in the band.
-            for model in this_object_model:
-                if model.name == this_object_model[model_static_band[b]].name:
-                    continue
-                for parameter in ["q", "PA", "n", "Re", "Ie"]:
-                    model[parameter].value = this_object_model[model_static_band[b]][
-                        parameter
-                    ]
-
-            model_static.append(this_object_model)
-
-    if FIT_SN:
-        for i, (ls, target, window) in enumerate(zip(live_sn, targets, windows)):
-            if not ls:
-                continue
-            model_sn.append(
-                ap.models.AstroPhot_Model(
-                    name=f"SN model {i}",
-                    model_type="point model",
-                    psf=target.psf,
-                    target=target,
-                    parameters={"center": transient_xy},
-                    window=window,
-                )
-            )
-
-    # In[ ]:
-
-    # AstroPhot doesn't handle SIP WCS yet.
-    # We'll roughly work around this by allowing a small shift in position
-    # for all (both) objects on the image.
-    CORRECT_SIP = True
-    if CORRECT_SIP:
-
-        def calc_center(params):
-            return params["nominal_center"].value + params["astrometric"].value
-
-        if FIT_HOST and FIT_SN:
-            host_center = [
-                ap.param.Parameter_Node(name="nominal_center", value=hxy)
-                for hxy in host_xy
-            ]
-
-            sn_center = ap.param.Parameter_Node(
-                name="nominal_center", value=transient_xy
-            )
-
-            live_sn_i = -1  # Accumulator to count live SN models
-            for i, ls in enumerate(live_sn):
-                # Require that we have the SN
-                # because we need both Host and SN to do a joint astrometric offset fit
-                if not ls:
-                    continue
-                live_sn_i += 1
-                # The x, y delta is the same for both the SN and host
-                # but can be different for each image.
-                P_astrometric = ap.param.Parameter_Node(
-                    name="astrometric",
-                    value=[0, 0],
-                )
-
-                for j in range(len(host_center)):
-                    model_static[j][i]["center"].value = calc_center
-                    model_static[j][i]["center"].link(host_center[j], P_astrometric)
-
-                model_sn[live_sn_i]["center"].value = calc_center
-                model_sn[live_sn_i]["center"].link(sn_center, P_astrometric)
-        else:
-            for b, model in zip(band, model_static):
-                if model.name == model_static[model_static_band[b]].name:
-                    continue
-                for parameter in ["center"]:
-                    model[parameter].value = model_static[model_static_band[b]][
-                        parameter
-                    ]
-            for b, model in zip(band, model_sn):
-                if model.name == model_sn[model_static_band[b]].name:
-                    continue
-                for parameter in ["center"]:
-                    model[parameter].value = model_static[model_static_band[b]][
-                        parameter
-                    ]
-
-    # Constrain host model to be the same per band
-
-    # Create a two-tier hierarchy of group models
-    # following recommendation from Connor Stone.
-
-    # Group model for each class: sky, host, sn
-    all_model_list = []
-    if len(model_sky) > 0:
-        sky_group_model = ap.models.AstroPhot_Model(
-            name="Sky",
-            model_type="group model",
-            models=[*model_sky],
-            target=targets,
-        )
-        all_model_list.extend(sky_group_model)
-
-    for model_host in model_static:
-        if len(model_host) > 0:
-            host_group_model = ap.models.AstroPhot_Model(
-                name="Host",
-                model_type="group model",
-                models=[*model_host],
-                target=targets,
-            )
-            all_model_list.extend(host_group_model)
-
-    if len(model_sn) > 0:
-        sn_group_model = ap.models.AstroPhot_Model(
-            name="SN",
-            model_type="group model",
-            models=[*model_sn],
-            target=targets,
-        )
-        all_model_list.extend(sn_group_model)
-
-    # Group model holds all the classes
-    model_host_sn = ap.models.AstroPhot_Model(
-        name="Host+SN",
-        model_type="group model",
-        models=all_model_list,
-        target=targets,
-    )
-
-    # We have to initialize the model so that there is a value for `parameters["center"]`
-
-    # In[ ]:
-
-    model_host_sn.initialize()
-
-    # In[ ]:
-
-    print(model_host_sn.parameters)
-
-    # In[ ]:
-
-    result = ap.fit.LM(model_host_sn, verbose=True).fit()
-    print(result.message)
-
-    # In[ ]:
-
-    result.update_uncertainty()
-
-    # The uncertainties for the center positions and astrometric uncertainties aren't calculated correctly right now.
-    #
-    # But the flux uncertainties are reasonable.
-
-    # In[ ]:
-
-    print(result.model.parameters)
-
-    # In[ ]:
-
-    model_filename = f"Transient_{transient_id}_AstroPhot_model.yaml"
-    result.model.save(model_filename)
-
-    # In[ ]:
-
-    covar = result.covariance_matrix.detach().cpu().numpy()
-    plt.imshow(
-        covar,
-        origin="lower",
-        vmin=1e-8,
-        vmax=1e-1,
-        norm="log",
-    )
-    plt.colorbar()
-
-    # Let's focus on the SN flux uncertainties:
-
-    # This is a little clunky because I don't have a better way of looking up the names of the parameters in the covariance matrix.
-
-    # In[ ]:
-
-    sn_flux_starts_at_parameter_idx = -len(targets.image_list)
-    covar = result.covariance_matrix.detach().cpu().numpy()
-    plt.imshow(
-        covar[sn_flux_starts_at_parameter_idx:, sn_flux_starts_at_parameter_idx:],
-        origin="lower",
-        #    vmin=1e-6, vmax=1, norm="log",
-    )
-    plt.colorbar()
-
-    # In[ ]:
-
-    sn_model_name_regex = re.compile("SN model [0-9]+")
-    sn_model_names = [
-        k for k in model_host_sn.models.keys() if sn_model_name_regex.match(k)
-    ]
-
-    # In[ ]:
-
-    filenames = [model_host_sn.models[m].target.header.filename for m in sn_model_names]
-    bands = [model_host_sn.models[m].target.header.band for m in sn_model_names]
-    visits = [model_host_sn.models[m].target.header.visit for m in sn_model_names]
-    mjds = [model_host_sn.models[m].target.header.mjd for m in sn_model_names]
-    sim_zptmag = [
-        model_host_sn.models[m].target.header.sim_zptmag for m in sn_model_names
-    ]
-
-    zp = np.array(
-        [
-            model_host_sn.models[m].target.zeropoint.detach().cpu().numpy()
-            for m in sn_model_names
-        ]
-    )
-    inst_mag = np.array(
-        [
-            -2.5
-            * model_host_sn.models[m].parameters["flux"].value.detach().cpu().numpy()
-            for m in sn_model_names
-        ]
-    )
-    mag_err = np.array(
-        [
-            2.5
-            * model_host_sn.models[m]
-            .parameters["flux"]
-            .uncertainty.detach()
-            .cpu()
-            .numpy()
-            for m in sn_model_names
-        ]
-    )
-
-    # In[ ]:
-
-    lightcurve_obs = Table(
-        {
-            "filename": filenames,
-            "band": bands,
-            "visit": visits,
-            "mjd": mjds,
-            "zp": zp,
-            "sim_zptmag": sim_zptmag,
-            "inst_mag": inst_mag,
-            "mag_err": mag_err,
-        }
-    )
-
-    # In[ ]:
-
-    lightcurve_obs["mag"] = lightcurve_obs["inst_mag"] + lightcurve_obs["zp"]
-    lightcurve_obs["inst_flux"] = 10 ** (-0.4 * lightcurve_obs["inst_mag"])
-    lightcurve_obs["inst_flux_err"] = (np.log(10) / 2.5) * (
-        lightcurve_obs["inst_flux"] * mag_err
-    )
-
-    lightcurve_obs["snr"] = (
-        lightcurve_obs["inst_flux"] / lightcurve_obs["inst_flux_err"]
-    )
-
-    # In[ ]:
-
-    zp_AB_to_nJy = 8.90 + 2.5 * 9
-
-    lightcurve_obs["flux"] = 10 ** (-0.4 * (lightcurve_obs["mag"] - zp_AB_to_nJy))
-    lightcurve_obs["flux_err"] = (
-        lightcurve_obs["flux"] / lightcurve_obs["inst_flux"]
-    ) * lightcurve_obs["inst_flux_err"]
-
-    # In[ ]:
-
-    lightcurve_obs["mjd"].info.format = "<10.3f"
-    lightcurve_obs["zp"].info.format = ">7.4f"
-    lightcurve_obs["flux"].info.format = ".3e"
-    lightcurve_obs["flux_err"].info.format = ".3e"
-    lightcurve_obs["snr"].info.format = "0.2f"
-    lightcurve_obs["mag"].info.format = ">7.4f"
-    lightcurve_obs["mag_err"].info.format = ">7.4f"
-
-    # In[ ]:
-
-    lightcurve_obs
-
-    # In[ ]:
-
-    lightcurve_truth
-
-    # In[ ]:
-
-    from astropy.table import join
-
-    lightcurve = join(
-        lightcurve_truth,
-        lightcurve_obs[
-            [
-                "filename",
-                "visit",
-                "band",
-                "mjd",
-                "zp",
-                "sim_zptmag",
-                "inst_mag",
-                "mag_err",
-                "mag",
-                "inst_flux",
-                "inst_flux_err",
-                "snr",
-                "flux",
-                "flux_err",
-            ]
-        ],
-        keys_left=["visit"],
-        keys_right=["visit"],
-        join_type="right",
-        table_names=("truth", "obs"),
-    )
-    # Need to add the ZPTMAG stored in the FITS image header to the 'mag' value in the truth file
-    # to get the calibrated AB-system magnitude
-    lightcurve["mag_truth"] += lightcurve["sim_zptmag"]
-
-    # In[ ]:
-
-    if verbose:
-        print(lightcurve)
-
-    lightcurve.write(f"lightcurve_{transient_id}.csv", overwrite=True)
-
-    # In[ ]:
-
+def plot_lightcurve(lightcurve, lightcurve_obs, lightcurve_truth, DATASET, snr_threshold=1):
     color_for_band = {
         "u": "purple",
         "g": "blue",
@@ -910,17 +472,11 @@ def run(
     }
     color_for_band["H158"] = color_for_band["H"]
 
-    # In[ ]:
-
     _, axes = plt.subplots(2, 1, height_ratios=[2, 1])
-
     ax = axes[0]
 
-    snr_threshold = 1
     for b in np.unique(lightcurve_obs["band"]):
-        (idx,) = np.where(
-            (lightcurve_obs["band"] == b) & (lightcurve_obs["snr"] > snr_threshold)
-        )
+        (idx,) = np.where((lightcurve_obs["band"] == b) & (lightcurve_obs["snr"] > snr_threshold))
         ax.errorbar(
             lightcurve_obs[idx]["mjd"],
             lightcurve_obs[idx]["mag"],
@@ -979,11 +535,377 @@ def run(
 
     plt.savefig(f"lightcurve_{transient_id}.png")
 
+
+def run(
+    transient_id,
+    DATASET="RomanDESC",
+    DATADIR=os.path.join(os.path.dirname(sys.argv[0]), "..", "data/RomanDESC"),
+    npix=75,
+    verbose=False,
+):
+    config = Config(DATASET)
+    print("CONFIG: ", config.hdu_idx)
+
+    transient_info, transient_host = get_transient_info_and_host(transient_id)
+    image_info, image_files, truth_files = get_image_and_truth_files(transient_id)
+    lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
+    print(lightcurve_truth)
+
+    transient_coord = SkyCoord(transient_info["ra"], transient_info["dec"], unit=u.degree)
+
+    targets = ap.image.Target_Image_List(
+        make_target(
+            f,
+            coord=transient_coord,
+            fwhm=config.fwhm,
+            pixel_scale=config.pixel_scale,
+            hdu_idx=config.hdu_idx,
+            bad_pixel_bitmask=config.bad_pixel_bitmask,
+        )
+        for f in image_files
+    )
+
+    for i, target in enumerate(targets):
+        target.header.visit = image_info["visit"][i]
+
+    windows = [make_window_for_target(t, transient_info["ra"], transient_info["dec"], npix) for t in targets]
+
+    plot_filename = f"transient_{DATASET}_{transient_id}_stamps.png"
+    plot_targets(targets, windows, plot_filename)
+
+    # The coordinate axes are in arcseconds,
+    # but in the local relative coordinate system for each image.
+    # AstroPhot used the pixel scale to translate pixels -> arcsec.
+
+    # Translate SN and host positions to projection plane positions for target.
+    # By construction of our targets, this is in the same projection plane position.
+
+    transient_xy = targets[0].world_to_plane(transient_info["ra"], transient_info["dec"])
+    if len(transient_host["ra"]) > 1:
+        host_xy = [
+            targets[0].world_to_plane(r, d) for r, d in zip(transient_host["ra"], transient_host["dec"])
+        ]
+    else:
+        host_xy = [targets[0].world_to_plane(transient_host["ra"], transient_host["dec"])]
+
+    # ### Jointly fit model across images
+
+    live_sn = [
+        (target.header.mjd > transient_info["mjd_start"]) and (target.header.mjd < transient_info["mjd_end"])
+        for target in targets
+    ]
+
+    model_sky = []
+    model_static = []
+    model_sn = []
+
+    # The RomanDESC images are "raw" science images with sky.
+    # The DC2 image are processed and have had a sky model removed.
+    FIT_SKY = {"DC2": False, "RomanDESC": True}
+    FIT_HOST = True
+    FIT_SN = True
+    CORRECT_SIP = True
+
+    if FIT_SKY[DATASET]:
+        for i, (target, window) in enumerate(zip(targets, windows)):
+            model_sky.append(
+                ap.models.AstroPhot_Model(
+                    name=f"sky model {i}",
+                    model_type="flat sky model",
+                    target=target,
+                    window=window,
+                )
+            )
+
+    # We might have multiple hosts in the scene.
+    # Potentially eventually multiple stars
+    if FIT_HOST:
+        for i, hxy in enumerate(host_xy):
+            model_static_band = {}
+            this_object_model = []
+
+            for j, (b, target, window) in enumerate(zip(image_info["band"], targets, windows)):
+                this_object_model.append(
+                    ap.models.AstroPhot_Model(
+                        name=f"galaxy model {i, j}",
+                        model_type="sersic galaxy model",
+                        target=target,
+                        psf_mode="full",
+                        parameters={"center": hxy},
+                        window=window,
+                    )
+                )
+                # I think this assignment copies reference that points to same underlying object
+                # in 'model_host' and 'model_host_band'
+                # The initialization step assumes that the reference model gets initialized first.
+                # So we just mark use the first model in the list of each band.
+                if b not in model_static_band.keys():
+                    model_static_band[b] = j
+
+            # Define static by locking all parameters to the first in the band.
+            for model in this_object_model:
+                if model.name == this_object_model[model_static_band[b]].name:
+                    continue
+                for parameter in ["q", "PA", "n", "Re", "Ie"]:
+                    model[parameter].value = this_object_model[model_static_band[b]][parameter]
+
+            model_static.append(this_object_model)
+
+    if FIT_SN:
+        for i, (ls, target, window) in enumerate(zip(live_sn, targets, windows)):
+            if not ls:
+                continue
+            model_sn.append(
+                ap.models.AstroPhot_Model(
+                    name=f"SN model {i}",
+                    model_type="point model",
+                    psf=target.psf,
+                    target=target,
+                    parameters={"center": transient_xy},
+                    window=window,
+                )
+            )
+
+    # AstroPhot doesn't handle SIP WCS yet.
+    # We'll roughly work around this by allowing a small shift in position
+    # for all (both) objects on the image.
+    CORRECT_SIP = True
+    if CORRECT_SIP:
+
+        def calc_center(params):
+            return params["nominal_center"].value + params["astrometric"].value
+
+        if FIT_HOST and FIT_SN:
+            host_center = [ap.param.Parameter_Node(name="nominal_center", value=hxy) for hxy in host_xy]
+
+            sn_center = ap.param.Parameter_Node(name="nominal_center", value=transient_xy)
+
+            live_sn_i = -1  # Accumulator to count live SN models
+            for i, ls in enumerate(live_sn):
+                # Require that we have the SN
+                # because we need both Host and SN to do a joint astrometric offset fit
+                if not ls:
+                    continue
+                live_sn_i += 1
+                # The x, y delta is the same for both the SN and host
+                # but can be different for each image.
+                P_astrometric = ap.param.Parameter_Node(
+                    name="astrometric",
+                    value=[0, 0],
+                )
+
+                for j in range(len(host_center)):
+                    model_static[j][i]["center"].value = calc_center
+                    model_static[j][i]["center"].link(host_center[j], P_astrometric)
+
+                model_sn[live_sn_i]["center"].value = calc_center
+                model_sn[live_sn_i]["center"].link(sn_center, P_astrometric)
+        else:
+            for b, model in zip(image_info["band"], model_static):
+                if model.name == model_static[model_static_band[b]].name:
+                    continue
+                for parameter in ["center"]:
+                    model[parameter].value = model_static[model_static_band[b]][parameter]
+            for b, model in zip(image_info["band"], model_sn):
+                if model.name == model_sn[model_static_band[b]].name:
+                    continue
+                for parameter in ["center"]:
+                    model[parameter].value = model_static[model_static_band[b]][parameter]
+
+    # Constrain host model to be the same per band
+
+    # Create a two-tier hierarchy of group models
+    # following recommendation from Connor Stone.
+
+    # Group model for each class: sky, host, sn
+    all_model_list = []
+    if len(model_sky) > 0:
+        sky_group_model = ap.models.AstroPhot_Model(
+            name="Sky",
+            model_type="group model",
+            models=[*model_sky],
+            target=targets,
+        )
+        all_model_list.extend(sky_group_model)
+
+    for model_host in model_static:
+        if len(model_host) > 0:
+            host_group_model = ap.models.AstroPhot_Model(
+                name="Host",
+                model_type="group model",
+                models=[*model_host],
+                target=targets,
+            )
+            all_model_list.extend(host_group_model)
+
+    if len(model_sn) > 0:
+        sn_group_model = ap.models.AstroPhot_Model(
+            name="SN",
+            model_type="group model",
+            models=[*model_sn],
+            target=targets,
+        )
+        all_model_list.extend(sn_group_model)
+
+    # Group model holds all the classes
+    model_host_sn = ap.models.AstroPhot_Model(
+        name="Host+SN",
+        model_type="group model",
+        models=all_model_list,
+        target=targets,
+    )
+
+    # We have to initialize the model so that there is a value for `parameters["center"]`
+    model_host_sn.initialize()
+    print(model_host_sn.parameters)
+
+    # FIT
+    result = ap.fit.LM(model_host_sn, verbose=True).fit()
+    print(result.message)
+
+    result.update_uncertainty()
+
+    # The uncertainties for the center positions and astrometric uncertainties
+    # aren't calculated correctly right now.
+    # But the flux uncertainties are reasonable.
+
+    print(result.model.parameters)
+
+    model_filename = f"Transient_{transient_id}_AstroPhot_model.yaml"
+    result.model.save(model_filename)
+
+    covar = result.covariance_matrix.detach().cpu().numpy()
+    plt.imshow(
+        covar,
+        origin="lower",
+        vmin=1e-8,
+        vmax=1e-1,
+        norm="log",
+    )
+    plt.colorbar()
+
+    # Let's focus on the SN flux uncertainties:
+    # This is a little clunky because I don't have a better way of looking up
+    # the names of the parameters in the covariance matrix.
+
+    sn_flux_starts_at_parameter_idx = -len(targets.image_list)
+    covar = result.covariance_matrix.detach().cpu().numpy()
+    plt.imshow(
+        covar[sn_flux_starts_at_parameter_idx:, sn_flux_starts_at_parameter_idx:],
+        origin="lower",
+        #    vmin=1e-6, vmax=1, norm="log",
+    )
+    plt.colorbar()
+
+    # In[ ]:
+
+    sn_model_name_regex = re.compile("SN model [0-9]+")
+    sn_model_names = [k for k in model_host_sn.models.keys() if sn_model_name_regex.match(k)]
+
+    # In[ ]:
+
+    filenames = [model_host_sn.models[m].target.header.filename for m in sn_model_names]
+    bands = [model_host_sn.models[m].target.header.band for m in sn_model_names]
+    visits = [model_host_sn.models[m].target.header.visit for m in sn_model_names]
+    mjds = [model_host_sn.models[m].target.header.mjd for m in sn_model_names]
+    sim_zptmag = [model_host_sn.models[m].target.header.sim_zptmag for m in sn_model_names]
+
+    zp = np.array([model_host_sn.models[m].target.zeropoint.detach().cpu().numpy() for m in sn_model_names])
+    inst_mag = np.array(
+        [
+            -2.5 * model_host_sn.models[m].parameters["flux"].value.detach().cpu().numpy()
+            for m in sn_model_names
+        ]
+    )
+    mag_err = np.array(
+        [
+            2.5 * model_host_sn.models[m].parameters["flux"].uncertainty.detach().cpu().numpy()
+            for m in sn_model_names
+        ]
+    )
+
+    lightcurve_obs = Table(
+        {
+            "filename": filenames,
+            "band": bands,
+            "visit": visits,
+            "mjd": mjds,
+            "zp": zp,
+            "sim_zptmag": sim_zptmag,
+            "inst_mag": inst_mag,
+            "mag_err": mag_err,
+        }
+    )
+
+    lightcurve_obs["mag"] = lightcurve_obs["inst_mag"] + lightcurve_obs["zp"]
+    lightcurve_obs["inst_flux"] = 10 ** (-0.4 * lightcurve_obs["inst_mag"])
+    lightcurve_obs["inst_flux_err"] = (np.log(10) / 2.5) * (lightcurve_obs["inst_flux"] * mag_err)
+
+    lightcurve_obs["snr"] = lightcurve_obs["inst_flux"] / lightcurve_obs["inst_flux_err"]
+
+    zp_AB_to_nJy = 8.90 + 2.5 * 9
+
+    lightcurve_obs["flux"] = 10 ** (-0.4 * (lightcurve_obs["mag"] - zp_AB_to_nJy))
+    lightcurve_obs["flux_err"] = (lightcurve_obs["flux"] / lightcurve_obs["inst_flux"]) * lightcurve_obs[
+        "inst_flux_err"
+    ]
+
+    lightcurve_obs["mjd"].info.format = "<10.3f"
+    lightcurve_obs["zp"].info.format = ">7.4f"
+    lightcurve_obs["flux"].info.format = ".3e"
+    lightcurve_obs["flux_err"].info.format = ".3e"
+    lightcurve_obs["snr"].info.format = "0.2f"
+    lightcurve_obs["mag"].info.format = ">7.4f"
+    lightcurve_obs["mag_err"].info.format = ">7.4f"
+
+    print(lightcurve_obs)
+    print(lightcurve_truth)
+
+    lightcurve = join(
+        lightcurve_truth,
+        lightcurve_obs[
+            [
+                "filename",
+                "visit",
+                "band",
+                "mjd",
+                "zp",
+                "sim_zptmag",
+                "inst_mag",
+                "mag_err",
+                "mag",
+                "inst_flux",
+                "inst_flux_err",
+                "snr",
+                "flux",
+                "flux_err",
+            ]
+        ],
+        keys_left=["visit"],
+        keys_right=["visit"],
+        join_type="right",
+        table_names=("truth", "obs"),
+    )
+    # Need to add the ZPTMAG stored in the FITS image header to the 'mag' value in the truth file
+    # to get the calibrated AB-system magnitude
+    lightcurve["mag_truth"] += lightcurve["sim_zptmag"]
+
+    # In[ ]:
+
+    if verbose:
+        print(lightcurve)
+
+    lightcurve.write(f"lightcurve_{transient_id}.csv", overwrite=True)
+
+    plot_lightcurve(lightcurve, lightcurve_obs, lightcurve_truth, DATASET)
+
+    image_file_basenames = [os.path.basename(f) for f in image_files]
+    plot_filename = "transient_{DATASET}_{transient_id}_model.png"
     plot_target_model(
         model_host_sn,
         window=windows,
         titles=image_file_basenames,
-        plot_filename=f"transient_{DATASET}_{transient_id}_model.png",
+        plot_filename=plot_filename,
     )
 
 
@@ -994,7 +916,7 @@ if __name__ == "__main__":
     # transient_id = 30300185
     # transient_id = 41024123441
 
-    ## This one fails to find isophote in initialization.
+    # This one fails to find isophote in initialization.
     # transient_id = 50006502
 
     transient_id = sys.argv[1]
