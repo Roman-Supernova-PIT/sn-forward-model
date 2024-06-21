@@ -1,0 +1,7 @@
+transient_id,ra,dec,mjd_start,mjd_end,comment
+41024123441,8.535177,-43.041163,60000.0,70000.0,Star.  Should be constant.
+30328322,8.52941151,-43.0266337,62300.0,62600.0,"Off-center transient, clear host, noticeable background."
+30005877,8.5412597,-43.0335549,62300.0,62600.0,Faint blip
+30300185,8.53301717,-43.0415779,62300.0,62600.0,Off-center transient; clear host galaxy.
+50006502,8.5296134,-43.0387536,62000.0,63000.0,On-center transient; clear host galaxy.
+20202893,8.037774,-42.752337,62236.0,62707.0,Example SNIa Lauren pointed to.
