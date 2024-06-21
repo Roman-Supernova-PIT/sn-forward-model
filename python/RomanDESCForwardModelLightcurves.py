@@ -838,8 +838,9 @@ def run_one_transient(
     model_filename = f"Transient_{transient_id}_AstroPhot_model.yaml"
     result.model.save(model_filename)
 
+    lightcurve_basename = f"lightcurve_{dataset}_{transient_id}"
     lightcurve_obs = make_lightcurve_from_fit(model_host_sn)
-    lightcurve_obs_filename = f"lightcurve_{transient_id}.csv"
+    lightcurve_obs_filename = lightcurve_basename + ".csv"
     if lightcurve_obs_filename is not None:
         lightcurve_obs.write(lightcurve_obs_filename, overwrite=overwrite)
 
@@ -848,7 +849,7 @@ def run_one_transient(
     if verbose:
         print(lightcurve)
 
-    plot_filename = f"lightcurve_{dataset}_{transient_id}.png"
+    plot_filename = lightcurve_basename + ".png"
     plot_lightcurve(
         lightcurve,
         lightcurve_obs,
