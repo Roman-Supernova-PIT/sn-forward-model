@@ -51,6 +51,7 @@ conda env config vars set WEBBPSF_PATH=/pscratch/sd/w/wmwv/RomanDESC/webbpsf-dat
 This requires astrophot >= v0.15.2
 """
 
+import argparse
 import os
 import re
 import sys
@@ -216,10 +217,10 @@ def get_truth_table(truth_files, visits, transient_id):
     return truth_table
 
 
-def get_transient_info_and_host(transient_id, DATADIR):
+def get_transient_info_and_host(transient_id, datadir):
     # Read basic info catalog
-    transient_info_file = os.path.join(DATADIR, "transient_info_table.csv")
-    transient_host_info_file = os.path.join(DATADIR, "transient_host_info_table.csv")
+    transient_info_file = os.path.join(datadir, "transient_info_table.csv")
+    transient_host_info_file = os.path.join(datadir, "transient_host_info_table.csv")
     transient_info_table = Table.read(transient_info_file, format="csv")
     # Should eventually shift to a different way of tracking hosts
     # For now just reformatting into the previous way.
@@ -241,7 +242,7 @@ def get_transient_info_and_host(transient_id, DATADIR):
     return transient_info, transient_host
 
 
-def get_image_and_truth_files(transient_id, DATASET, DATADIR):
+def get_image_and_truth_files(transient_id, dataset, datadir):
     # Get list of images (visit, band, sca) that contain object position
     image_info = get_visit_band_sca_for_object_id(transient_id)
 
@@ -255,8 +256,8 @@ def get_image_and_truth_files(transient_id, DATASET, DATADIR):
         image_file_basenames.append(image_file_format.format(visit=v, band=b, sca=s))
         truth_file_basenames.append(truth_file_for_image_format.format(visit=v, band=b, sca=s))
 
-    image_files = [os.path.join(DATADIR, bn) for bn in image_file_basenames]
-    truth_files = [os.path.join(DATADIR, bn) for bn in truth_file_basenames]
+    image_files = [os.path.join(datadir, bn) for bn in image_file_basenames]
+    truth_files = [os.path.join(datadir, bn) for bn in truth_file_basenames]
 
     return image_info, image_files, truth_files
 
@@ -456,7 +457,9 @@ def _plot_target_model_single(model, window=None, title=None, figsize=(16, 4)):
     ax[2].set_title("Residual")
 
 
-def plot_lightcurve(lightcurve, lightcurve_obs, lightcurve_truth, DATASET, snr_threshold=1, plot_filename=None):
+def plot_lightcurve(
+    lightcurve, lightcurve_obs, lightcurve_truth, dataset, snr_threshold=1, plot_filename=None
+):
     color_for_band = {
         "u": "purple",
         "g": "blue",
@@ -490,7 +493,7 @@ def plot_lightcurve(lightcurve, lightcurve_obs, lightcurve_truth, DATASET, snr_t
         )
     ax.set_ylabel("mag")
     # ax.set_xlabel("MJD")
-    ax.set_title(f"Proof of Concept: {DATASET} {transient_id}")
+    ax.set_title(f"Proof of Concept: {dataset} {transient_id}")
     plt.ylim(23.5, 19)
 
     if lightcurve_truth is not None:
@@ -570,23 +573,25 @@ def plot_covariance(result, targets, plot_filename=None):
 
 def run(
     transient_id,
-    DATASET="RomanDESC",
-    DATADIR=None,
+    datadir,
+    dataset="RomanDESC",
     npix=75,
     verbose=False,
     overwrite=True,
 ):
-    config = Config(DATASET)
+    config = Config(dataset)
 
-    if DATADIR is None:
-        DATADIR = os.path.join(os.path.dirname(sys.argv[0]), "..", "data", DATASET),
-
-    transient_info, transient_host = get_transient_info_and_host(transient_id, DATADIR)
-    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, DATASET, DATADIR)
+    if verbose:
+        print(f"Getting transient and static scene information for {transient_id}.")
+    transient_info, transient_host = get_transient_info_and_host(transient_id, datadir)
+    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, dataset, datadir)
     lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
     print(lightcurve_truth)
 
     transient_coord = SkyCoord(transient_info["ra"], transient_info["dec"], unit=u.degree)
+    if verbose:
+        print(f"Found transient {transient_id} at ({transient_info['ra']}, {transient_info['dec']})")
+        print("Building AstroPhot target image list from {len(image_info)} files.")
 
     targets = ap.image.Target_Image_List(
         make_target(
@@ -603,9 +608,13 @@ def run(
     for i, target in enumerate(targets):
         target.header.visit = image_info["visit"][i]
 
+    if verbose:
+        print("Making windows for the scene on each image.")
     windows = [make_window_for_target(t, transient_info["ra"], transient_info["dec"], npix) for t in targets]
 
-    plot_filename = f"transient_{DATASET}_{transient_id}_stamps.png"
+    if verbose:
+        print("Saving postage stamps from each image.")
+    plot_filename = f"transient_{dataset}_{transient_id}_stamps.png"
     plot_targets(targets, windows, plot_filename)
 
     # The coordinate axes are in arcseconds,
@@ -615,6 +624,8 @@ def run(
     # Translate SN and host positions to projection plane positions for target.
     # By construction of our targets, this is in the same projection plane position.
 
+    if verbose:
+        print("Translating RA, Dec of transient and static objects to x, y in each image.")
     transient_xy = targets[0].world_to_plane(transient_info["ra"], transient_info["dec"])
     if len(transient_host["ra"]) > 1:
         host_xy = [
@@ -641,7 +652,7 @@ def run(
     FIT_SN = True
     CORRECT_SIP = True
 
-    if FIT_SKY[DATASET]:
+    if FIT_SKY[dataset]:
         for i, (target, window) in enumerate(zip(targets, windows)):
             model_sky.append(
                 ap.models.AstroPhot_Model(
@@ -819,17 +830,17 @@ def run(
     if verbose:
         print(lightcurve)
 
-    plot_filename = f"lightcurve_{DATASET}_{transient_id}.png"
+    plot_filename = f"lightcurve_{dataset}_{transient_id}.png"
     plot_lightcurve(
         lightcurve,
         lightcurve_obs,
         lightcurve_truth,
-        DATASET,
+        dataset,
         plot_filename=plot_filename,
     )
 
     image_file_basenames = [os.path.basename(f) for f in image_files]
-    plot_filename = f"stamps_{DATASET}_{transient_id}_model.png"
+    plot_filename = f"stamps_{dataset}_{transient_id}_model.png"
     plot_target_model(
         model_host_sn,
         window=windows,
@@ -934,7 +945,30 @@ def make_joint_lightcurve_from_obs_and_truth(lightcurve_obs, lightcurve_truth):
     return lightcurve
 
 
+def parse_and_run():
+    parser = argparse.ArgumentParser(
+        prog="SNForwardModel",
+        description="Runs forward models of SN + static scence and generates lightcurves.",
+    )
+    parser.add_argument(
+        "transient_id",
+        type=int,
+        help="Transient ID.  Used to look up information in 'transient_info_table.csv' and 'transient_host_info_table.csv'",
+    )
+    parser.add_argument("--datadir", type=str, help="Location of image and truth files.")
+    parser.add_argument("--dataset", type=str, default="RomanDESC", choices=["RomanDESC", "DC2"])
+    parser.add_argument("-v", "--verbose", action="store_true")
+
+    args = parser.parse_args()
+
+    run(transient_id=args.transient_id,
+        datadir=args.datadir,
+        dataset=args.dataset,
+        verbose=args.verbose)
+
+
 if __name__ == "__main__":
+    parse_and_run()
     # transient_id = 30328322
     # transient_id = 20202893
     # transient_id = 30005877
@@ -943,6 +977,3 @@ if __name__ == "__main__":
 
     # This one fails to find isophote in initialization.
     # transient_id = 50006502
-
-    transient_id = int(sys.argv[1])
-    run(transient_id)
