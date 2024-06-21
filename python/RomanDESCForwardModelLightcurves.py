@@ -54,7 +54,6 @@ This requires astrophot >= v0.15.2
 import argparse
 import os
 import re
-import sys
 from typing import Optional
 
 import astrophot as ap
@@ -458,7 +457,7 @@ def _plot_target_model_single(model, window=None, title=None, figsize=(16, 4)):
 
 
 def plot_lightcurve(
-    lightcurve, lightcurve_obs, lightcurve_truth, dataset, snr_threshold=1, plot_filename=None
+    lightcurve, lightcurve_obs, lightcurve_truth, transient_id, dataset, snr_threshold=1, plot_filename=None
 ):
     color_for_band = {
         "u": "purple",
@@ -571,7 +570,26 @@ def plot_covariance(result, targets, plot_filename=None):
         plt.savefig(plot_filename)
 
 
-def run(
+def run_multiple_transients(
+    transient_ids,
+    datadir,
+    dataset="RomanDESC",
+    npix=75,
+    verbose=False,
+    overwrite=True,
+):
+    for transient_id in transient_ids:
+        run_one_transient(
+            transient_id,
+            datadir,
+            dataset="RomanDESC",
+            npix=75,
+            verbose=False,
+            overwrite=True,
+        )
+
+
+def run_one_transient(
     transient_id,
     datadir,
     dataset="RomanDESC",
@@ -835,6 +853,7 @@ def run(
         lightcurve,
         lightcurve_obs,
         lightcurve_truth,
+        transient_id,
         dataset,
         plot_filename=plot_filename,
     )
@@ -953,7 +972,11 @@ def parse_and_run():
     parser.add_argument(
         "transient_id",
         type=int,
-        help="Transient ID.  Used to look up information in 'transient_info_table.csv' and 'transient_host_info_table.csv'",
+        nargs="+",
+        help="""
+Transient ID, or multiple IDs.
+Used to look up information in 'transient_info_table.csv' and 'transient_host_info_table.csv'
+        """,
     )
     parser.add_argument("--datadir", type=str, help="Location of image and truth files.")
     parser.add_argument("--dataset", type=str, default="RomanDESC", choices=["RomanDESC", "DC2"])
@@ -961,10 +984,9 @@ def parse_and_run():
 
     args = parser.parse_args()
 
-    run(transient_id=args.transient_id,
-        datadir=args.datadir,
-        dataset=args.dataset,
-        verbose=args.verbose)
+    run_multiple_transients(
+        transient_ids=args.transient_id, datadir=args.datadir, dataset=args.dataset, verbose=args.verbose
+    )
 
 
 if __name__ == "__main__":
