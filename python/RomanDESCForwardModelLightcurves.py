@@ -196,14 +196,26 @@ def get_image_and_truth_files(transient_id, dataset, datadir):
     image_info = get_visit_band_detector_for_object_id(transient_id, datadir)
 
     # Define and load images and truth
-    image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
-    truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{detector}.txt"
+    roman_image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
+    roman_truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{detector}.txt"
+
+    rubin_image_file_format = "calexp/*/{band}/{band}_{detector}/{visit}/calexp_LSSTCam_{band}_{band}_{detector}_{visit}_*_*_*.fits"
+    rubin_truth_file_for_image_format = ""  # No truth
 
     image_file_basenames = []
     truth_file_basenames = []
-    for v, b, s in zip(image_info["visit"], image_info["band"], image_info["detector"]):
-        image_file_basenames.append(image_file_format.format(visit=v, band=b, detector=s))
-        truth_file_basenames.append(truth_file_for_image_format.format(visit=v, band=b, detector=s))
+    for instrument, visit, band, detector in zip(image_info["instrument"], image_info["visit"], image_info["band"], image_info["detector"]):
+        if instrument == "WFI":
+            image_file = roman_image_file_format.format(visit=visit, band=band, detector=detector)
+            truth_file = roman_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
+        elif instrument == "LSSTCam":
+            image_file = rubin_image_file_format.format(visit=visit, band=band, detector=detector)
+            truth_file = rubin_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
+        else:
+            print("Instrument {instrument} unknown.")
+
+        image_file_basenames.append(image_file)
+        truth_file_basenames.append(truth_file)
 
     image_files = [os.path.join(datadir, bn) for bn in image_file_basenames]
     truth_files = [os.path.join(datadir, bn) for bn in truth_file_basenames]
