@@ -6,31 +6,31 @@ from RomanDESCForwardModelLightcurves import (Config,
                                               get_roman_psf,
                                               get_transient_info_and_host,
                                               get_truth_table,
-                                              get_visit_band_sca_for_object_id)
+                                              get_visit_band_detector_for_object_id)
 
-DATASET = "RomanDESC"
-DATADIR = os.path.join(os.path.dirname(__file__), "data", DATASET)
+DATASET = "RomanDESCSims"
+DATADIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
 
 
 def test_roman_psf():
 
     band = "H158"
-    sca = 17
+    detector = 17
     x = 200
     y = 400
 
     # Make sure we get get each of the extensions
     # And check that they have the right relative size.
-    psf = get_roman_psf(band, sca, x, y, ext_name="OVERSAMP")
+    psf = get_roman_psf(band, detector, x, y, ext_name="OVERSAMP")
     assert psf.shape == (180, 180)
 
-    psf = get_roman_psf(band, sca, x, y, ext_name="DET_SAMP")
+    psf = get_roman_psf(band, detector, x, y, ext_name="DET_SAMP")
     assert psf.shape == (45, 45)
 
-    psf = get_roman_psf(band, sca, x, y, ext_name="OVERDIST")
+    psf = get_roman_psf(band, detector, x, y, ext_name="OVERDIST")
     assert psf.shape == (180, 180)
 
-    psf = get_roman_psf(band, sca, x, y, ext_name="DET_DIST")
+    psf = get_roman_psf(band, detector, x, y, ext_name="DET_DIST")
     assert psf.shape == (45, 45)
 
 
@@ -45,12 +45,12 @@ def test_config():
     assert roman_config.hdu_idx["mask"] == 3
 
 
-def test_get_visit_band_sca_for_object_id():
+def test_get_visit_band_detector_for_object_id():
     """Do we get information back for a given transient?"""
 
     transient_id = 30328322
-    visit_band_sca = get_visit_band_sca_for_object_id(transient_id)
-    assert visit_band_sca["sca"][0] == 17
+    visit_band_detector = get_visit_band_detector_for_object_id(transient_id, DATADIR)
+    assert visit_band_detector["detector"][0] == 17
 
 
 def test_get_image_and_truth_files():

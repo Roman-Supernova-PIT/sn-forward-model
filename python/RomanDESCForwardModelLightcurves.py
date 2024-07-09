@@ -124,8 +124,8 @@ def get_visit_band_detector_for_object_id(object_id, datadir):
     Note:
     For now this returns the results from a dict that was manually computed
     """
-    image_info_file = os.path.join(datadir, "visit_band_info.ecsv")
-    image_info = Table(image_info_file)
+    image_info_file = os.path.join(datadir, "info", "visit_band_info.ecsv")
+    image_info = Table.read(image_info_file)
 
     this_object = image_info["transient_id"] == object_id
 
@@ -168,12 +168,12 @@ def get_truth_table(truth_files, visits, transient_id):
 
 def get_transient_info_and_host(transient_id, infodir):
     # Read basic info catalog
-    transient_info_file = os.path.join(infodir, "transient_info_table.ecsv")
-    transient_host_info_file = os.path.join(infodir, "transient_host_info_table.ecsv")
-    transient_info_table = Table.read(transient_info_file, format="ecsv")
+    transient_info_file = os.path.join(infodir, "info", "transient_info_table.ecsv")
+    transient_host_info_file = os.path.join(infodir, "info", "transient_host_info_table.ecsv")
+    transient_info_table = Table.read(transient_info_file, format="ascii.ecsv")
     # Should eventually shift to a different way of tracking hosts
     # For now just reformatting into the previous way.
-    transient_id_host_per_row = Table.read(transient_host_info_file, format="ecsv")
+    transient_id_host_per_row = Table.read(transient_host_info_file, format="ascii.ecsv")
     transient_id_host = {}
     for r in np.unique(transient_id_host_per_row["transient_id"]):
         (idx,) = np.where(transient_id_host_per_row["transient_id"] == r)
