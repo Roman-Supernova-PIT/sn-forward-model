@@ -52,6 +52,7 @@ This requires astrophot >= v0.15.2
 """
 
 import argparse
+from glob import glob
 import os
 import re
 from typing import Optional
@@ -220,7 +221,12 @@ def get_image_and_truth_files(transient_id, dataset, datadir):
         image_file_basenames.append(image_file)
         truth_file_basenames.append(truth_file)
 
-    image_files = [os.path.join(datadir, bn) for bn in image_file_basenames]
+    image_files = []
+    for bn in image_file_basenames:
+        find_the_file = glob(os.path.join(datadir, bn))
+        if len(find_the_file):
+            image_files.append(find_the_file[0])
+
     truth_files = [os.path.join(datadir, bn) for bn in truth_file_basenames]
 
     return image_info, image_files, truth_files
