@@ -144,6 +144,9 @@ def get_truth_table(truth_files, visits, transient_id):
     mag = []
 
     for tf, v in zip(truth_files, visits):
+        if not os.path.isfile(tf):
+            print("Truth file {tf} is not a file.")
+            continue
         this_truth_table = Table.read(tf, format="ascii")
         idx = this_truth_table["object_id"] == transient_id
         if sum(idx) == 0:
