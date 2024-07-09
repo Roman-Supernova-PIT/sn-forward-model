@@ -7,6 +7,7 @@ astrophot
 pyro-ppl
 torch
 webbpsf
-# Requirements for linting and CI
+# Requirements for linting, testing, and CI
 black
 isort
+pytest
