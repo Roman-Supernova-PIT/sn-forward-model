@@ -117,75 +117,24 @@ class Config:
         self.bad_pixel_bitmask = self.all_config["bad_pixel_bitmask"][dataset]
 
 
-def get_visit_band_sca_for_object_id(object_id):
+def get_visit_band_detector_for_object_id(object_id, datadir):
     """
     Returns all of the image files that contain the location of the object.
 
     Note:
     For now this returns the results from a dict that was manually computed
     """
-    visit_band_sca = {
-        41024123441: {
-            "visit": [1394, 8340, 14088, 29499, 36445, 42193],
-            "band": ["H158", "H158", "H158", "H158", "H158", "H158"],
-            "sca": [9, 17, 8, 9, 17, 8],
-        },
-        30328322: {
-            "visit": [36445, 1394, 14088, 8340, 42193, 29499],
-            "band": ["H158", "H158", "H158", "H158", "H158", "H158"],
-            "sca": [17, 9, 8, 17, 8, 9],
-        },
-        30005877: {
-            "visit": [1394, 8340, 14088, 29499, 36445, 42193],
-            "band": ["H158", "H158", "H158", "H158", "H158", "H158"],
-            "sca": [9, 17, 8, 9, 17, 8],
-        },
-        30300185: {
-            "visit": [1394, 8340, 14088, 29499, 36445, 42193],
-            "band": ["H158", "H158", "H158", "H158", "H158", "H158"],
-            "sca": [9, 17, 8, 9, 17, 8],
-        },
-        50006502: {
-            "visit": [1394, 8340, 14088, 29499, 36445, 42193],
-            "band": ["H158", "H158", "H158", "H158", "H158", "H158"],
-            "sca": [9, 17, 8, 9, 17, 8],
-        },
-        # Falls in chip gap for 14088, 42193
-        20202893: {
-            "visit": [
-                1394,
-                8340,
-                11776,
-                19907,
-                25636,
-                29499,
-                36445,
-                39881,
-                48012,
-                53741,
-            ],
-            "band": [
-                "H158",
-                "H158",
-                "H158",
-                "H158",
-                "H158",
-                "H158",
-                "H158",
-                "H158",
-                "H158",
-                "H158",
-            ],
-            "sca": [12, 1, 5, 10, 2, 12, 1, 5, 10, 2],
-        },
-    }
+    image_info_file = os.path.join(datadir, "visit_band_info.ecsv")
+    image_info = Table(image_info_file)
+
+    this_object = image_info["transient_id"] == object_id
 
     # Could instead Raise exception once we have an exception framework
-    if object_id not in visit_band_sca.keys():
+    if sum(this_object) < 1:
         print(f"Object ID: '{object_id}' unknown.")
         return None
 
-    return visit_band_sca[object_id]
+    return image_info[this_object]
 
 
 def get_truth_table(truth_files, visits, transient_id):
@@ -219,12 +168,12 @@ def get_truth_table(truth_files, visits, transient_id):
 
 def get_transient_info_and_host(transient_id, infodir):
     # Read basic info catalog
-    transient_info_file = os.path.join(infodir, "transient_info_table.csv")
-    transient_host_info_file = os.path.join(infodir, "transient_host_info_table.csv")
-    transient_info_table = Table.read(transient_info_file, format="csv")
+    transient_info_file = os.path.join(infodir, "transient_info_table.ecsv")
+    transient_host_info_file = os.path.join(infodir, "transient_host_info_table.ecsv")
+    transient_info_table = Table.read(transient_info_file, format="ecsv")
     # Should eventually shift to a different way of tracking hosts
     # For now just reformatting into the previous way.
-    transient_id_host_per_row = Table.read(transient_host_info_file, format="csv")
+    transient_id_host_per_row = Table.read(transient_host_info_file, format="ecsv")
     transient_id_host = {}
     for r in np.unique(transient_id_host_per_row["transient_id"]):
         (idx,) = np.where(transient_id_host_per_row["transient_id"] == r)
@@ -243,18 +192,18 @@ def get_transient_info_and_host(transient_id, infodir):
 
 
 def get_image_and_truth_files(transient_id, dataset, datadir):
-    # Get list of images (visit, band, sca) that contain object position
-    image_info = get_visit_band_sca_for_object_id(transient_id)
+    # Get list of images (visit, band, detector) that contain object position
+    image_info = get_visit_band_detector_for_object_id(transient_id, datadir)
 
     # Define and load images and truth
-    image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{sca}.fits.gz"
-    truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{sca}.txt"
+    image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
+    truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{detector}.txt"
 
     image_file_basenames = []
     truth_file_basenames = []
-    for v, b, s in zip(image_info["visit"], image_info["band"], image_info["sca"]):
-        image_file_basenames.append(image_file_format.format(visit=v, band=b, sca=s))
-        truth_file_basenames.append(truth_file_for_image_format.format(visit=v, band=b, sca=s))
+    for v, b, s in zip(image_info["visit"], image_info["band"], image_info["detector"]):
+        image_file_basenames.append(image_file_format.format(visit=v, band=b, detector=s))
+        truth_file_basenames.append(truth_file_for_image_format.format(visit=v, band=b, detector=s))
 
     image_files = [os.path.join(datadir, bn) for bn in image_file_basenames]
     truth_files = [os.path.join(datadir, bn) for bn in truth_file_basenames]
@@ -262,11 +211,11 @@ def get_image_and_truth_files(transient_id, dataset, datadir):
     return image_info, image_files, truth_files
 
 
-def get_roman_psf(band, sca, x, y, ext_name="DET_SAMP"):
+def get_roman_psf(band, detector, x, y, ext_name="DET_SAMP"):
     """
-    Return the Roman WFI PSF for the given band, sca at the detector position x, y
+    Return the Roman WFI PSF for the given band, detector at the detector position x, y
 
-    Use `webbpsf` package for band, sca, x, y and SED.
+    Use `webbpsf` package for band, detector, x, y and SED.
 
     ext_name: ["OVERSAMP", "DET_SAMP", "OVERDIST", "DET_DIST"]
 
@@ -290,7 +239,7 @@ def get_roman_psf(band, sca, x, y, ext_name="DET_SAMP"):
     }
     wfi = webbpsf.roman.WFI()
     wfi.filter = standard_band_names[band]
-    wfi.detector = f"SCA{sca:02d}"
+    wfi.detector = f"SCA{detector:02d}"
     wfi.detector_position = (x, y)
     wfi.options["parity"] = "odd"
 
@@ -352,7 +301,7 @@ def make_target(
 
     wcs = WCS(img_header)
     band = header["FILTER"]
-    sca = header["SCA_NUM"]
+    detector = header["SCA_NUM"]
 
     zp_band = {"H158": 32.603}
 
@@ -361,7 +310,7 @@ def make_target(
 
     x, y = wcs.world_to_pixel(coord)
 
-    psf = get_roman_psf(band, sca, x, y)
+    psf = get_roman_psf(band, detector, x, y)
 
     target_kwargs = {
         "data": np.array(img, dtype=np.float64),
@@ -852,7 +801,7 @@ def run_one_transient(
 
     lightcurve_basename = f"lightcurve_{dataset}_{transient_id}"
     lightcurve_obs = make_lightcurve_from_fit(model_host_sn)
-    lightcurve_obs_filename = lightcurve_basename + ".csv"
+    lightcurve_obs_filename = lightcurve_basename + ".ecsv"
     if lightcurve_obs_filename is not None:
         lightcurve_obs.write(lightcurve_obs_filename, overwrite=overwrite)
 
@@ -988,7 +937,7 @@ def parse_and_run():
         nargs="+",
         help="""
 Transient ID, or multiple IDs.
-Used to look up information in 'transient_info_table.csv' and 'transient_host_info_table.csv'
+Used to look up information in 'transient_info_table.ecsv' and 'transient_host_info_table.ecsv'
         """,
     )
     parser.add_argument("--datadir", type=str, help="Location of image and truth files.")
