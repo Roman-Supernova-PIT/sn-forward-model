@@ -203,7 +203,7 @@ def get_image_and_truth_files(transient_id, dataset, datadir):
     roman_image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
     roman_truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{detector}.txt"
 
-    rubin_image_file_format = "calexp/*/{band}/{band}_{detector}/{visit}/calexp_LSSTCam_{band}_{band}_{detector}_{visit}_*_*_*.fits"
+    rubin_image_file_format = "images/calexp/*/{band}/{band}_{detector}/{visit}/calexp_LSSTCam_{band}_{band}_{detector}_{visit}_*_*_*.fits"
     rubin_truth_file_for_image_format = ""  # No truth
 
     image_file_basenames = []
