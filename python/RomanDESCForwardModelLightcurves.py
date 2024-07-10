@@ -317,7 +317,7 @@ def resample_psf_2x2(psf):
     return new_psf
 
 
-def read_psfex_image(psfex_info, psfex_data, resample=True, non_negative=True):
+def read_psfex_image(psfex_info, psfex_data, resample=False, non_negative=True):
     """
     Reads the PSFex header extensions from the LSST Science Pipelines.
 
@@ -372,7 +372,7 @@ def get_rubin_psf(band, detector, x, y, hdu, hdu_idx={"psfex_info": 11, "psfex_d
         pixstep, psf = read_psfex_image(
             hdu[hdu_idx["psfex_info"]],
             hdu[hdu_idx["psfex_data"]],
-            resample=True,
+            resample=False,
         )
 
     return psf
