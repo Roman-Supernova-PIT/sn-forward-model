@@ -431,13 +431,25 @@ def make_target(
     wcs = WCS(img_header)
     instrument = header["INSTRUMENT"]
 
+    # Oy, this is terrible.
+    try:
+        instrument = header["INSTRUMENT"]
+    except:
+        instrument = "WFI"
+
     band = header["FILTER"]
-    detector = header["SCA_NUM"]
+    if instrument == "WFI":
+        detector = header["SCA_NUM"]
+    elif instrument == "LSSTCam":
+        detector = header["DETECTOR_ID"]
 
     zp_band = {"H158": 32.603}
 
     if zeropoint is None:
-        zeropoint = zp_band[band]  # + 2.5 * np.log10(header["EXPTIME"])
+        if instrument == "WFI":
+            zeropoint = zp_band[band]  # + 2.5 * np.log10(header["EXPTIME"])
+        elif instrument == "LSSTCAM":
+            zeropoint = header["MAGZERO"]
 
     x, y = wcs.world_to_pixel(coord)
 
@@ -459,13 +471,20 @@ def make_target(
     target = ap.image.Target_Image(**target_kwargs)
 
     target.header.filename = image_filepath
-    target.header.mjd = header["MJD-OBS"]
+    try:
+        target.header.mjd = header["MJD-OBS"]
+    except:
+        target.header.mjd = header["MJD"]
+
     target.header.band = header["FILTER"]
     # ZPTMAG is
     #     full_image.header['ZPTMAG']   = 2.5*np.log10(self.exptime*roman.collecting_area)
     # https://github.com/matroxel/roman_imsim/blob/864357c8d088164b9662007f2ebe50e23243368e/roman_imsim/sca.py#L133
     # This needs to be added to truth file "mag" to get calibrated mag
-    target.header.sim_zptmag = header["ZPTMAG"]
+    if instrument == "WFI":
+        target.header.sim_zptmag = header["ZPTMAG"]
+    elif instrument == "LSSTCam":
+        target.header.sim_zptmag = 0.
 
     return target
 
