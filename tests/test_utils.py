@@ -50,6 +50,7 @@ def test_get_visit_band_detector_for_object_id():
 
     transient_id = 30328322
     visit_band_detector = get_visit_band_detector_for_object_id(transient_id, DATADIR)
+    assert len(visit_band_detector) == 10
     assert visit_band_detector["detector"][0] == 17
 
 
