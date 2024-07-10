@@ -146,7 +146,7 @@ def get_truth_table(truth_files, visits, transient_id):
 
     for tf, v in zip(truth_files, visits):
         if not os.path.isfile(tf):
-            print("Truth file {tf} is not a file.")
+            print(f"Truth file {tf} is not a file.")
             continue
         this_truth_table = Table.read(tf, format="ascii")
         idx = this_truth_table["object_id"] == transient_id
@@ -216,7 +216,7 @@ def get_image_and_truth_files(transient_id, dataset, datadir):
             image_file = rubin_image_file_format.format(visit=visit, band=band, detector=detector)
             truth_file = rubin_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
         else:
-            print("Instrument {instrument} unknown.")
+            print(f"Instrument {instrument} unknown.")
 
         image_file_basenames.append(image_file)
         truth_file_basenames.append(truth_file)
@@ -565,7 +565,7 @@ def run_multiple_transients(
             infodir,
             dataset="RomanDESC",
             npix=75,
-            verbose=False,
+            verbose=verbose,
             overwrite=True,
         )
 
@@ -586,12 +586,14 @@ def run_one_transient(
     transient_info, transient_host = get_transient_info_and_host(transient_id, infodir)
     image_info, image_files, truth_files = get_image_and_truth_files(transient_id, dataset, datadir)
     lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
-    print(lightcurve_truth)
+    if verbose:
+        print(lightcurve_truth)
 
     transient_coord = SkyCoord(transient_info["ra"], transient_info["dec"], unit=u.degree)
     if verbose:
         print(f"Found transient {transient_id} at ({transient_info['ra']}, {transient_info['dec']})")
-        print("Building AstroPhot target image list from {len(image_info)} files.")
+        print(f"Building AstroPhot target image list from {len(image_files)} files:")
+        print(image_files)
 
     targets = ap.image.Target_Image_List(
         make_target(
