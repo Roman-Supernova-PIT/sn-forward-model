@@ -203,7 +203,10 @@ def get_image_and_truth_files(transient_id, dataset, datadir):
     roman_image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
     roman_truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{detector}.txt"
 
-    rubin_image_file_format = "images/calexp/*/{band}/{band}_{detector}/{visit}/calexp_LSSTCam_{band}_{band}_{detector}_{visit}_*_*_*.fits"
+    rubin_image_file_format = (
+        "images/calexp/*/{band}/{band}_{detector}/{visit}/"
+        + "calexp_LSSTCam_{band}_{band}_{detector}_{visit}_*_*_*.fits"
+    )
     rubin_truth_file_for_image_format = ""  # No truth
 
     image_file_basenames = []
@@ -230,6 +233,18 @@ def get_image_and_truth_files(transient_id, dataset, datadir):
     truth_files = [os.path.join(datadir, bn) for bn in truth_file_basenames]
 
     return image_info, image_files, truth_files
+
+
+def get_psf(instrument, band, detector, x, y, hdu):
+    """
+    Return PSF of appropriate Telescope
+    """
+    if instrument == "WFI":
+        psf = get_roman_psf(band, detector, x, y)
+    elif instrument == "LSSTCam":
+        psf = get_rubin_psf(band, detector, x, y, hdu)
+
+    return psf
 
 
 def get_roman_psf(band, detector, x, y, ext_name="DET_SAMP"):
@@ -266,6 +281,97 @@ def get_roman_psf(band, detector, x, y, ext_name="DET_SAMP"):
 
     psf_hdu = wfi.calc_psf()
     psf = psf_hdu[ext_name].data
+
+    return psf
+
+
+def resample_psf_2x2(psf):
+    nx, ny = psf.shape
+
+    # If odd, then we want to preserve the center row nx//2, nx//2
+    # And we'll average the other rows together, 2 at a time
+
+    # Rows
+    # nx = 40
+    # 0:20, 40-20:40
+
+    a = psf[: nx // 2, :].reshape(nx // 4, 2, ny).sum(axis=1) / 2
+    b = psf[-((nx - 1) // 2) :, :].reshape(nx // 4, 2, ny).sum(axis=1) / 2
+    if nx % 2 == 1:
+        x_pieces = [a, psf[(nx // 2) : (nx // 2 + 1), :], b]
+    else:
+        x_pieces = [a, b]
+    c = np.concatenate(x_pieces, axis=0)
+
+    # Columns
+    d = c[:, : (ny // 2)].reshape((nx + 1) // 2, ny // 4, 2).sum(axis=2) / 2
+    e = c[:, -((ny - 1) // 2) :].reshape((nx + 1) // 2, ny // 4, 2).sum(axis=2) / 2
+    if ny % 2 == 1:
+        y_pieces = [d, c[:, (ny // 2) : (ny // 2 + 1)], e]
+    else:
+        y_pieces = [d, e]
+    new_psf = np.concatenate(y_pieces, axis=1)
+
+    return new_psf
+
+
+def read_psfex_image(psfex_info, psfex_data, resample=True, non_negative=True):
+    """
+    Reads the PSFex header extensions from the LSST Science Pipelines.
+
+    Returns:
+    --------
+    pixstep: float, arcsec/pixel (assumed symmetric and scalar)
+    psf_image: [n, n]
+
+    Notes:
+    ------
+    Used for DC2 DP0.2 processing.  This is not documented behavior and
+    is not robust against future changes.
+
+    But you may find that you have an equivalent "get the PSF" function
+    for the dataset of interest to you.
+    """
+    size = psfex_data.data["_size"]
+    comp = psfex_data.data["_comp"]
+
+    psf_basis_image = comp.reshape(*size[0][::-1])
+
+    # The PSF is oversampled by pixstep
+    pixstep = psfex_info.data._pixstep[0]
+
+    # Calculate the PSF at the location of the reference X, Y points on the image.
+    psf_image = psf_basis_image * psfex_data.data["basis"][0, :, np.newaxis, np.newaxis]
+    psf_image = psf_image.sum(0)
+
+    if resample:
+        # Hardcoded 2x2 resampling
+        psf_image = resample_psf_2x2(psf_image)
+        pixstep *= 2
+
+    if non_negative:
+        psf_image[np.nonzero(psf_image < 0)] = 0
+
+    # Tensor expects float64
+    psf_image = psf_image.astype("float64")
+
+    # And normalize to 1 over the PSF area, but in image pixel space
+    psf_image /= psf_image.sum() * pixstep**2
+
+    return pixstep, psf_image
+
+
+def get_rubin_psf(band, detector, x, y, hdu, hdu_idx={"psfex_info": 11, "psfex_data": 12}):
+    """
+    Return the Rubin LSSTCam for the given band, detector at position x, y
+    """
+
+    if "psfex_info" in hdu_idx.keys():
+        pixstep, psf = read_psfex_image(
+            hdu[hdu_idx["psfex_info"]],
+            hdu[hdu_idx["psfex_data"]],
+            resample=True,
+        )
 
     return psf
 
@@ -321,6 +427,8 @@ def make_target(
                 bad_pixel_mask = informative_mask & bad_pixel_bitmask
 
     wcs = WCS(img_header)
+    instrument = header["INSTRUMENT"]
+
     band = header["FILTER"]
     detector = header["SCA_NUM"]
 
@@ -331,7 +439,7 @@ def make_target(
 
     x, y = wcs.world_to_pixel(coord)
 
-    psf = get_roman_psf(band, detector, x, y)
+    psf = get_psf(instrument, band, detector, x, y, hdu)
 
     target_kwargs = {
         "data": np.array(img, dtype=np.float64),
