@@ -55,9 +55,9 @@ Install required packages.  See `requirements_conda.txt` and `requirements_pip.t
 
 On NERSC
 ```
-INFODIR=/pscratch/sd/w/wmwv/RomanDESC
-DATADIR=/pscratch/sd/w/wmwv/RomanDESC
-transient_id=41024123441
+INFODIR=/pscratch/sd/w/wmwv/RomanDESCSims
+DATADIR=/pscratch/sd/w/wmwv/RomanDESCSims
+transient_id=30328322
 python RomanDESCForwardModelLightcurves.py ${transient_id} --infodir ${INFODIR} --datadir ${DATADIR} --dataset RomanDESC
 ```
 
