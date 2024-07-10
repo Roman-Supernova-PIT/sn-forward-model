@@ -211,7 +211,9 @@ def get_image_and_truth_files(transient_id, dataset, datadir):
 
     image_file_basenames = []
     truth_file_basenames = []
-    for instrument, visit, band, detector in zip(image_info["instrument"], image_info["visit"], image_info["band"], image_info["detector"]):
+    for instrument, visit, band, detector in zip(
+        image_info["instrument"], image_info["visit"], image_info["band"], image_info["detector"]
+    ):
         if instrument == "WFI":
             image_file = roman_image_file_format.format(visit=visit, band=band, detector=detector)
             truth_file = roman_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
@@ -296,18 +298,18 @@ def resample_psf_2x2(psf):
     # 0:20, 40-20:40
 
     a = psf[: nx // 2, :].reshape(nx // 4, 2, ny).sum(axis=1) / 2
-    b = psf[-((nx - 1) // 2) :, :].reshape(nx // 4, 2, ny).sum(axis=1) / 2
+    b = psf[-(nx - 1) // 2 :, :].reshape(nx // 4, 2, ny).sum(axis=1) / 2
     if nx % 2 == 1:
-        x_pieces = [a, psf[(nx // 2) : (nx // 2 + 1), :], b]
+        x_pieces = [a, psf[nx // 2 : nx // 2 + 1, :], b]
     else:
         x_pieces = [a, b]
     c = np.concatenate(x_pieces, axis=0)
 
     # Columns
     d = c[:, : (ny // 2)].reshape((nx + 1) // 2, ny // 4, 2).sum(axis=2) / 2
-    e = c[:, -((ny - 1) // 2) :].reshape((nx + 1) // 2, ny // 4, 2).sum(axis=2) / 2
+    e = c[:, -(ny - 1) // 2 :].reshape((nx + 1) // 2, ny // 4, 2).sum(axis=2) / 2
     if ny % 2 == 1:
-        y_pieces = [d, c[:, (ny // 2) : (ny // 2 + 1)], e]
+        y_pieces = [d, c[:, ny // 2 : ny // 2 + 1], e]
     else:
         y_pieces = [d, e]
     new_psf = np.concatenate(y_pieces, axis=1)
