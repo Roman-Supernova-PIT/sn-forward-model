@@ -216,10 +216,10 @@ def get_truth_table(truth_files, visits, transient_id):
     return truth_table
 
 
-def get_transient_info_and_host(transient_id, datadir):
+def get_transient_info_and_host(transient_id, infodir):
     # Read basic info catalog
-    transient_info_file = os.path.join(datadir, "transient_info_table.csv")
-    transient_host_info_file = os.path.join(datadir, "transient_host_info_table.csv")
+    transient_info_file = os.path.join(infodir, "transient_info_table.csv")
+    transient_host_info_file = os.path.join(infodir, "transient_host_info_table.csv")
     transient_info_table = Table.read(transient_info_file, format="csv")
     # Should eventually shift to a different way of tracking hosts
     # For now just reformatting into the previous way.
@@ -573,6 +573,7 @@ def plot_covariance(result, targets, plot_filename=None):
 def run_multiple_transients(
     transient_ids,
     datadir,
+    infodir,
     dataset="RomanDESC",
     npix=75,
     verbose=False,
@@ -582,6 +583,7 @@ def run_multiple_transients(
         run_one_transient(
             transient_id,
             datadir,
+            infodir,
             dataset="RomanDESC",
             npix=75,
             verbose=False,
@@ -592,6 +594,7 @@ def run_multiple_transients(
 def run_one_transient(
     transient_id,
     datadir,
+    infodir,
     dataset="RomanDESC",
     npix=75,
     verbose=False,
@@ -601,7 +604,7 @@ def run_one_transient(
 
     if verbose:
         print(f"Getting transient and static scene information for {transient_id}.")
-    transient_info, transient_host = get_transient_info_and_host(transient_id, datadir)
+    transient_info, transient_host = get_transient_info_and_host(transient_id, infodir)
     image_info, image_files, truth_files = get_image_and_truth_files(transient_id, dataset, datadir)
     lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
     print(lightcurve_truth)
@@ -980,13 +983,18 @@ Used to look up information in 'transient_info_table.csv' and 'transient_host_in
         """,
     )
     parser.add_argument("--datadir", type=str, help="Location of image and truth files.")
+    parser.add_argument("--infodir", type=str, help="Location of SN and host galaxy catalogs.")
     parser.add_argument("--dataset", type=str, default="RomanDESC", choices=["RomanDESC", "DC2"])
     parser.add_argument("-v", "--verbose", action="store_true")
 
     args = parser.parse_args()
 
     run_multiple_transients(
-        transient_ids=args.transient_id, datadir=args.datadir, dataset=args.dataset, verbose=args.verbose
+        transient_ids=args.transient_id,
+        datadir=args.datadir,
+        infodir=args.infodir,
+        dataset=args.dataset,
+        verbose=args.verbose,
     )
 
 
