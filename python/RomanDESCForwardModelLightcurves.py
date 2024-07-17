@@ -118,14 +118,14 @@ class Config:
         self.bad_pixel_bitmask = self.all_config["bad_pixel_bitmask"][dataset]
 
 
-def get_visit_band_detector_for_object_id(object_id, datadir):
+def get_visit_band_detector_for_object_id(object_id, infodir):
     """
     Returns all of the image files that contain the location of the object.
 
     Note:
     For now this returns the results from a dict that was manually computed
     """
-    image_info_file = os.path.join(datadir, "info", "visit_band_info.ecsv")
+    image_info_file = os.path.join(infodir, "info", "visit_band_info.ecsv")
     image_info = Table.read(image_info_file)
 
     this_object = image_info["transient_id"] == object_id
