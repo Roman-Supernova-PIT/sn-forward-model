@@ -53,8 +53,15 @@ ${DATADIR}/truth/H158/42193/Roman_TDS_index_H158_42193_1.txt
 Install required packages.  See `requirements_conda.txt` and `requirements_pip.txt` for the respective requirements.  (Not all needed packages are available via Conda).
 
 
+On NERSC
 ```
+INFODIR=/pscratch/sd/w/wmwv/RomanDESC
 DATADIR=/pscratch/sd/w/wmwv/RomanDESC
 transient_id=41024123441
-python RomanDESCForwardModelLightcurves.py ${transient_id} --datadir ${DATADIR}
+python RomanDESCForwardModelLightcurves.py ${transient_id} --infodir ${INFODIR} --datadir ${DATADIR} --dataset RomanDESC
+```
+
+A general test example script.  Update the variables in the script to match your local system locations for DATADIR.
+```
+sh tests/test_one_lightcurve.sh
 ```
