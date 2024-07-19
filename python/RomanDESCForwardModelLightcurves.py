@@ -55,6 +55,7 @@ import argparse
 import os
 import re
 from typing import Optional
+import warnings
 
 import astrophot as ap
 import astropy.units as u
@@ -64,7 +65,7 @@ import webbpsf
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.table import Table, join
-from astropy.wcs import WCS
+from astropy.wcs import FITSFixedWarning, WCS
 
 
 class Config:
@@ -326,28 +327,38 @@ def make_target(
     psf_size: float, width of the PSF
     do_mask: Use mask.
     """
-    hdu = fits.open(image_filepath)
-    header = hdu[0].header  # Primary header
-    img = hdu[hdu_idx["image"]].data  # Image HDU
-    var = hdu[hdu_idx["variance"]].data  # Variance HDU
+    # The RomanDESCSims Roman files have a misformatted DATE-OBS
+    # (" " instead of "T" separator)
+    # so we build the targets in a context manager to suppress the warning
+    # messages for things that were automatically fixed when reading the file.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FITSFixedWarning)
+        with fits.open(image_filepath) as hdu:
+            header = hdu[0].header  # Primary header
+            img = hdu[hdu_idx["image"]].data  # Image HDU
+            # The WCS is stored in the image header not the primary header.
+            # So grab that here.
+            img_header = hdu[hdu_idx["image"]].header  # Image HDU Header
+            var = hdu[hdu_idx["variance"]].data  # Variance HDU
 
+            if do_mask:
+                # We need to read the informative mask with a bad-value mask.
+                # E.g., for an LSST Science Pipelines mask, mask values
+                # don't mean bad, they just indicate something about the pixel
+                # E.g., one flag is that that pixel is part of a footprint
+                # of a valid object and we don't want to mask those!
+                informative_mask = hdu[hdu_idx["mask"]].data  # Mask
+                bad_pixel_mask = informative_mask & bad_pixel_bitmask
+
+    wcs = WCS(img_header)
     band = header["FILTER"]
     sca = header["SCA_NUM"]
 
     zp_band = {"H158": 32.603}
 
-    if do_mask:
-        # But need to translate the informative mask with a bad-pixel mask.
-        # E.g., for an LSST Science Pipelines mask, one of the mask values
-        # is that that pixel is part of a footprint of a valid object
-        # We don't want to mask those!
-        informative_mask = hdu[hdu_idx["mask"]].data  # Mask
-        bad_pixel_mask = informative_mask & bad_pixel_bitmask
-
     if zeropoint is None:
         zeropoint = zp_band[band]  # + 2.5 * np.log10(header["EXPTIME"])
 
-    wcs = WCS(hdu[hdu_idx["image"]].header)
     x, y = wcs.world_to_pixel(coord)
 
     psf = get_roman_psf(band, sca, x, y)
@@ -375,8 +386,6 @@ def make_target(
     # https://github.com/matroxel/roman_imsim/blob/864357c8d088164b9662007f2ebe50e23243368e/roman_imsim/sca.py#L133
     # This needs to be added to truth file "mag" to get calibrated mag
     target.header.sim_zptmag = header["ZPTMAG"]
-
-    hdu.close()
 
     return target
 
