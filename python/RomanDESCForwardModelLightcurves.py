@@ -195,9 +195,9 @@ def get_transient_info_and_host(transient_id, infodir):
     return transient_info, transient_host
 
 
-def get_image_and_truth_files(transient_id, dataset, datadir):
+def get_image_and_truth_files(transient_id, dataset, infodir, datadir):
     # Get list of images (visit, band, detector) that contain object position
-    image_info = get_visit_band_detector_for_object_id(transient_id, datadir)
+    image_info = get_visit_band_detector_for_object_id(transient_id, infodir)
 
     # Define and load images and truth
     roman_image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
@@ -713,7 +713,7 @@ def run_one_transient(
     if verbose:
         print(f"Getting transient and static scene information for {transient_id}.")
     transient_info, transient_host = get_transient_info_and_host(transient_id, infodir)
-    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, dataset, datadir)
+    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, dataset, infodir, datadir)
     lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
     if verbose:
         print(lightcurve_truth)
