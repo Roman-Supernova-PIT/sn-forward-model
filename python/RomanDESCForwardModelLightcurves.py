@@ -429,7 +429,6 @@ def make_target(
                 bad_pixel_mask = informative_mask & bad_pixel_bitmask
 
     wcs = WCS(img_header)
-    instrument = header["INSTRUMENT"]
 
     # Oy, this is terrible.
     try:
