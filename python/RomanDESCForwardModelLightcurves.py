@@ -602,7 +602,7 @@ def plot_lightcurve(
     ax.set_title(f"Proof of Concept: {dataset} {transient_id}")
     plt.ylim(23.5, 19)
 
-    if lightcurve_truth is not None:
+    if lightcurve_truth is not None and len(lightcurve_truth) > 0:
         for b in np.unique(lightcurve["band"]):
             (idx,) = np.where(lightcurve["band"] == b)
             ax.scatter(
@@ -620,27 +620,28 @@ def plot_lightcurve(
         ax.legend(ncols=2)
 
     ###
-    ax = axes[1]
+    if lightcurve_truth is not None and len(lightcurve_truth) > 0:
+        ax = axes[1]
 
-    for b in np.unique(lightcurve["band"]):
-        (idx,) = np.where((lightcurve["band"] == b))
-        ax.errorbar(
-            lightcurve[idx]["mjd"],
-            lightcurve[idx]["mag_obs"] - lightcurve[idx]["mag_truth"],
-            lightcurve[idx]["mag_err"],
-            marker="o",
-            markerfacecolor=color_for_band[b],
-            markeredgecolor=color_for_band[b],
-            ecolor=color_for_band[b],
-            linestyle="none",
-            label=f"{b}",
-        )
-    ax.set_ylabel("obs - truth [mag]")
-    ax.set_xlabel("MJD")
-    # plt.ylim(23.5, 17)
-    ax.axhline(0, color="gray", ls="--")
-    ax.set_ylim(1, -1)
-    ax.set_xlim(axes[0].get_xlim())
+        for b in np.unique(lightcurve["band"]):
+            (idx,) = np.where((lightcurve["band"] == b))
+            ax.errorbar(
+                lightcurve[idx]["mjd"],
+                lightcurve[idx]["mag_obs"] - lightcurve[idx]["mag_truth"],
+                lightcurve[idx]["mag_err"],
+                marker="o",
+                markerfacecolor=color_for_band[b],
+                markeredgecolor=color_for_band[b],
+                ecolor=color_for_band[b],
+                linestyle="none",
+                label=f"{b}",
+            )
+        ax.set_ylabel("obs - truth [mag]")
+        ax.set_xlabel("MJD")
+        # plt.ylim(23.5, 17)
+        ax.axhline(0, color="gray", ls="--")
+        ax.set_ylim(1, -1)
+        ax.set_xlim(axes[0].get_xlim())
 
     if plot_filename is not None:
         plt.savefig(plot_filename)
