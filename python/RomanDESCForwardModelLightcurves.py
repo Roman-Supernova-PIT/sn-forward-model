@@ -387,7 +387,7 @@ def make_target(
     zeropoint: Optional[float] = None,
     bad_pixel_bitmask: Optional[int] = 0b0,
     psf_size: int = 51,
-    do_mask=False,
+    do_mask: bool = False,
 ):
     """Make an AstroPhot target.
 
@@ -428,31 +428,31 @@ def make_target(
                 informative_mask = hdu[hdu_idx["mask"]].data  # Mask
                 bad_pixel_mask = informative_mask & bad_pixel_bitmask
 
-    wcs = WCS(img_header)
+            wcs = WCS(img_header)
 
-    # Oy, this is terrible.
-    try:
-        instrument = header["INSTRUMENT"]
-    except:
-        instrument = "WFI"
+            # Oy, this is terrible.
+            try:
+                instrument = header["INSTRUMENT"]
+            except:
+                instrument = "WFI"
 
-    band = header["FILTER"]
-    if instrument == "WFI":
-        detector = header["SCA_NUM"]
-    elif instrument == "LSSTCam":
-        detector = header["DETECTOR_ID"]
+            band = header["FILTER"]
+            if instrument == "WFI":
+                detector = header["SCA_NUM"]
+            elif instrument == "LSSTCam":
+                detector = header["DETECTOR_ID"]
 
-    zp_band = {"H158": 32.603}
+            zp_band = {"H158": 32.603}
 
-    if zeropoint is None:
-        if instrument == "WFI":
-            zeropoint = zp_band[band]  # + 2.5 * np.log10(header["EXPTIME"])
-        elif instrument == "LSSTCAM":
-            zeropoint = header["MAGZERO"]
+            if zeropoint is None:
+                if instrument == "WFI":
+                    zeropoint = zp_band[band]  # + 2.5 * np.log10(header["EXPTIME"])
+                elif instrument == "LSSTCAM":
+                    zeropoint = header["MAGZERO"]
 
-    x, y = wcs.world_to_pixel(coord)
+            x, y = wcs.world_to_pixel(coord)
 
-    psf = get_psf(instrument, band, detector, x, y, hdu)
+            psf = get_psf(instrument, band, detector, x, y, hdu)
 
     target_kwargs = {
         "data": np.array(img, dtype=np.float64),
