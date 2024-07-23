@@ -5,7 +5,6 @@
 # RomanDESC SN Simulation modeling with AstroPhot
 
 Author: Michael Wood-Vasey <wmwv@pitt.edu>
-Last Verified to run: 2024-03-18
 
 Use the [AstroPhot](https://autostronomy.github.io/AstroPhot/) package to model
 the lightcurve of SN in Roman+Rubin DESC simulations
