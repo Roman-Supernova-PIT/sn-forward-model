@@ -243,7 +243,7 @@ def get_psf(instrument, band, detector, x, y, hdu):
     if instrument == "WFI":
         psf = get_roman_psf(band, detector, x, y)
     elif instrument == "LSSTCam":
-        psf = get_rubin_psf(band, detector, x, y, hdu)
+        psf = get_rubin_psf(hdu)
 
     return psf
 
@@ -362,7 +362,7 @@ def read_psfex_image(psfex_info, psfex_data, resample=False, non_negative=True):
     return pixstep, psf_image
 
 
-def get_rubin_psf(band, detector, x, y, hdu, hdu_idx={"psfex_info": 11, "psfex_data": 12}):
+def get_rubin_psf(hdu, hdu_idx={"psfex_info": 11, "psfex_data": 12}):
     """
     Return the Rubin LSSTCam for the given band, detector at position x, y
     """
