@@ -535,6 +535,7 @@ def _plot_target_model_multiple(
     if figsize is None:
         figsize = (base_figsize[0], n * base_figsize[1])
     fig, ax = plt.subplots(n, 3, figsize=figsize)
+    ax = ax.reshape(n, 3)  # In case n==1, we still want to index in 2D
     # Would like to just call this, but window isn't parsed as a list
     # https://github.com/Autostronomy/AstroPhot/issues/142
     #    ap.plots.target_image(fig, ax[:, 0], model.target, window=window, flipx=True)
@@ -615,9 +616,9 @@ def plot_lightcurve(
                 label=f"model {b}",
             )
 
-    ax.set_ylim(ax.get_ylim()[::-1])
+        ax.set_ylim(ax.get_ylim()[::-1])
 
-    ax.legend(ncols=2)
+        ax.legend(ncols=2)
 
     ###
     ax = axes[1]
@@ -956,7 +957,11 @@ def run_one_transient(
     if lightcurve_obs_filename is not None:
         lightcurve_obs.write(lightcurve_obs_filename, overwrite=overwrite)
 
-    lightcurve = make_joint_lightcurve_from_obs_and_truth(lightcurve_obs, lightcurve_truth)
+    if len(lightcurve_truth) > 0:
+        lightcurve = make_joint_lightcurve_from_obs_and_truth(lightcurve_obs, lightcurve_truth)
+    else:
+        print("Truth lightcurve empty.")
+        lightcurve = lightcurve_obs
 
     if verbose:
         print(lightcurve)
