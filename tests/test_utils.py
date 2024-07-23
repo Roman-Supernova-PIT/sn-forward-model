@@ -1,15 +1,30 @@
 import os
 
 import numpy as np
+
+from astropy.io import fits
+
 from RomanDESCForwardModelLightcurves import (Config,
                                               get_image_and_truth_files,
                                               get_roman_psf,
+                                              get_rubin_psf,
                                               get_transient_info_and_host,
                                               get_truth_table,
                                               get_visit_band_detector_for_object_id)
 
 DATASET = "RomanDESCSims"
 DATADIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
+
+TEST_RUBIN_FILE = os.path.join(os.path.dirname(__file__), "data", "calexp_LSSTCam_r_r_57_5025071600940_R21_S01_u_descdm_preview_data_step1_w_2024_12_20240324T050830Z.fits")
+
+def test_rubin_psf():
+
+    with fits.open(TEST_RUBIN_FILE) as hdu:
+        # Make sure we get get each of the extensions
+        # And check that they have the right relative size.
+        psf = get_rubin_psf(hdu)
+
+    assert psf.shape == (83, 83)
 
 
 def test_roman_psf():
