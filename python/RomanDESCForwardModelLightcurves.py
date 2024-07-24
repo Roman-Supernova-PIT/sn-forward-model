@@ -699,12 +699,82 @@ def run_multiple_transients(
         )
 
 
+def add_joint_center_parameter(model_static, model_sn, live_sn, host_xy, transient_xy, fit_host, fit_sn):
+    """
+    Add a "nominal_center" and "astrometric" offset to model parameters
+
+    Lock for all objects on a given stamp.
+
+    Parameters:
+    -----------
+    model_static : AstroPhot model of static objects.  Will be modified in place
+    model_sn : AstroPhot model of SN.  Will be modified in place.
+    live_sn : Boolean array that is True for each image (entry) with a live SN
+    host_xy : Host x, y position on normalized window
+    transient_xy : Transient x, y position on normalized window
+    fit_host : Are we fitting Host
+    fit_sn : Are we fitting SN
+    """
+    def calc_center(params):
+        return params["nominal_center"].value + params["astrometric"].value
+
+    if fit_host and fit_sn:
+        host_center = [ap.param.Parameter_Node(name="nominal_center", value=hxy) for hxy in host_xy]
+
+        sn_center = ap.param.Parameter_Node(name="nominal_center", value=transient_xy)
+
+        live_sn_i = -1  # Accumulator to count live SN models
+        for i, ls in enumerate(live_sn):
+            # Require that we have the SN
+            # because we need both Host and SN to do a joint astrometric offset fit
+            if not ls:
+                continue
+            live_sn_i += 1
+            # The x, y delta is the same for both the SN and host
+            # but can be different for each image.
+            P_astrometric = ap.param.Parameter_Node(
+                name="astrometric",
+                value=[0, 0],
+            )
+
+            for j in range(len(host_center)):
+                model_static[j][i]["center"].value = calc_center
+                model_static[j][i]["center"].link(host_center[j], P_astrometric)
+
+            model_sn[live_sn_i]["center"].value = calc_center
+            model_sn[live_sn_i]["center"].link(sn_center, P_astrometric)
+
+
+def lock_parameters_to_first_model(model_static, model_sn, bands, model_static_band):
+    """
+    Lock galaxy properties per band, per object.
+
+    Parameters:
+    -----------
+    model_static : AstroPhot model.  Will be modified in place
+    model_sn : AstroPhot model.  Will be modified in place
+    bands :
+    model_static_band :
+    """
+    for b, model in zip(bands, model_static):
+        if model.name == model_static[model_static_band[b]].name:
+            continue
+        for parameter in ["center"]:
+            model[parameter].value = model_static[model_static_band[b]][parameter]
+    for b, model in zip(bands, model_sn):
+        if model.name == model_sn[model_static_band[b]].name:
+            continue
+        for parameter in ["center"]:
+            model[parameter].value = model_static[model_static_band[b]][parameter]
+
+
 def run_one_transient(
     transient_id,
     datadir,
     infodir,
     dataset="RomanDESC",
     npix=75,
+    correct_sip=True,
     verbose=False,
     overwrite=True,
 ):
@@ -781,7 +851,6 @@ def run_one_transient(
     FIT_SKY = {"DC2": False, "RomanDESC": True}
     FIT_HOST = True
     FIT_SN = True
-    CORRECT_SIP = True
 
     if FIT_SKY[dataset]:
         for i, (target, window) in enumerate(zip(targets, windows)):
@@ -846,49 +915,10 @@ def run_one_transient(
     # AstroPhot doesn't handle SIP WCS yet.
     # We'll roughly work around this by allowing a small shift in position
     # for all (both) objects on the image.
-    CORRECT_SIP = True
-    if CORRECT_SIP:
-
-        def calc_center(params):
-            return params["nominal_center"].value + params["astrometric"].value
-
-        if FIT_HOST and FIT_SN:
-            host_center = [ap.param.Parameter_Node(name="nominal_center", value=hxy) for hxy in host_xy]
-
-            sn_center = ap.param.Parameter_Node(name="nominal_center", value=transient_xy)
-
-            live_sn_i = -1  # Accumulator to count live SN models
-            for i, ls in enumerate(live_sn):
-                # Require that we have the SN
-                # because we need both Host and SN to do a joint astrometric offset fit
-                if not ls:
-                    continue
-                live_sn_i += 1
-                # The x, y delta is the same for both the SN and host
-                # but can be different for each image.
-                P_astrometric = ap.param.Parameter_Node(
-                    name="astrometric",
-                    value=[0, 0],
-                )
-
-                for j in range(len(host_center)):
-                    model_static[j][i]["center"].value = calc_center
-                    model_static[j][i]["center"].link(host_center[j], P_astrometric)
-
-                model_sn[live_sn_i]["center"].value = calc_center
-                model_sn[live_sn_i]["center"].link(sn_center, P_astrometric)
-        else:
-            for b, model in zip(image_info["band"], model_static):
-                if model.name == model_static[model_static_band[b]].name:
-                    continue
-                for parameter in ["center"]:
-                    model[parameter].value = model_static[model_static_band[b]][parameter]
-            for b, model in zip(image_info["band"], model_sn):
-                if model.name == model_sn[model_static_band[b]].name:
-                    continue
-                for parameter in ["center"]:
-                    model[parameter].value = model_static[model_static_band[b]][parameter]
-
+    if correct_sip:
+        add_joint_center_parameter(model_static, model_sn, live_sn, host_xy, transient_xy, FIT_HOST, FIT_SN)
+    else:
+        lock_parameters_to_first_model(model_static, model_sn, image_info["band"], model_static_band)
     # Constrain host model to be the same per band
 
     # Create a two-tier hierarchy of group models
