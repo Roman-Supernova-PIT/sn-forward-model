@@ -14,9 +14,7 @@ IMAGE_BASENAMES = [
     "calexp_LSSTCam_y_y_10_5025071600962_R21_S01_u_descdm_preview_data_step1_w_2024_12_20240326T152819Z.fits",
 ]
 
-TEST_RUBIN_FILES = [
-    os.path.join(os.path.dirname(__file__), "data", f) for f in IMAGE_BASENAMES
-]
+TEST_RUBIN_FILES = [os.path.join(os.path.dirname(__file__), "data", f) for f in IMAGE_BASENAMES]
 
 
 def test_make_target():
@@ -35,9 +33,7 @@ def test_make_target():
     }
 
     coord = SkyCoord(8.52941151, -43.0266337, unit=u.deg)
-    target = make_target(
-        TEST_RUBIN_FILES[0], coord, fwhm=0.6, pixel_scale=0.2, hdu_idx=hdu_idx["DC2"]
-    )
+    target = make_target(TEST_RUBIN_FILES[0], coord, fwhm=0.6, pixel_scale=0.2, hdu_idx=hdu_idx["DC2"])
 
     assert target is not None
 
@@ -60,9 +56,7 @@ def test_make_model():
     }
 
     coord = SkyCoord(8.52941151, -43.0266337, unit=u.deg)
-    target = make_target(
-        TEST_RUBIN_FILES[0], coord, fwhm=0.6, pixel_scale=0.2, hdu_idx=hdu_idx["DC2"]
-    )
+    target = make_target(TEST_RUBIN_FILES[0], coord, fwhm=0.6, pixel_scale=0.2, hdu_idx=hdu_idx["DC2"])
     transient_ra, transient_dec = 8.52941151, -43.0266337
     host_ra, host_dec = 8.529866, -43.026571
     host_xy = target.world_to_plane(host_ra, host_dec)
@@ -104,20 +98,18 @@ def test_make_model_multiple_bands():
 
     coord = SkyCoord(8.52941151, -43.0266337, unit=u.deg)
     targets = ap.image.Target_Image_List(
-        make_target(f, coord, fwhm=0.6, pixel_scale=0.2, hdu_idx=hdu_idx["DC2"])
-        for f in TEST_RUBIN_FILES
+        make_target(f, coord, fwhm=0.6, pixel_scale=0.2, hdu_idx=hdu_idx["DC2"]) for f in TEST_RUBIN_FILES
     )
     transient_ra, transient_dec = 8.52941151, -43.0266337
     host_ra, host_dec = 8.529866, -43.026571
+    transient_xy = targets[0].world_to_plane(transient_ra, transient_dec)
     host_xy = targets[0].world_to_plane(host_ra, host_dec)
     npix = 75
-    windows = [
-        make_window_for_target(t, transient_ra, transient_dec, npix) for t in targets
-    ]
+    windows = [make_window_for_target(t, transient_ra, transient_dec, npix) for t in targets]
 
-    models = [
+    host_group_model = [
         ap.models.AstroPhot_Model(
-            name=f"test {i}",
+            name=f"galaxy model {i}",
             model_type="sersic galaxy model",
             target=t,
             psf_mode="full",
@@ -126,19 +118,46 @@ def test_make_model_multiple_bands():
         )
         for i, (t, w) in enumerate(zip(targets, windows))
     ]
+    sn_group_model = [
+        ap.models.AstroPhot_Model(
+            name=f"SN model {i}",
+            model_type="point model",
+            psf=t.psf,
+            target=t,
+            psf_mode="full",
+            parameters={"center": transient_xy},
+            window=w,
+        )
+        for i, (t, w) in enumerate(zip(targets, windows))
+    ]
 
-    model_group = ap.models.AstroPhot_Model(
-        name="group",
+    model_host_sn = ap.models.AstroPhot_Model(
+        name="Host+SN",
         model_type="group model",
-        models=models,
+        models=host_group_model+sn_group_model,
         target=targets,
     )
 
-    print("Before initialize")
-    print(model_group.parameters)
-    model_group.initialize()
+    print("Initialize host model")
+    print("Before init:")
+    print(host_group_model[0].parameters)
+    host_group_model[0].initialize()
     print("After initialize")
-    print(model_group.parameters)
+    print(host_group_model[0].parameters)
+
+    print("Initialize SN model")
+    print("Before init:")
+    print(sn_group_model[0].parameters)
+    sn_group_model[0].initialize()
+    print("After initialize")
+    print(sn_group_model[0].parameters)
+
+    print("Initialize Host+SN model")
+    print("Before init:")
+    print(model_host_sn.parameters)
+    model_host_sn.initialize()
+    print("After initialize")
+    print(model_host_sn.parameters)
 
 
 #    assert model.parameters["PA"] is not None
