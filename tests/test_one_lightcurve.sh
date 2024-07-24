@@ -1,4 +1,6 @@
 # A general test example script.
+# Run from root directory, sn-forward-model, with sh tests/test_one_lightcurve.sh.
+
 # Update the variables in the script to match your local system locations for DATADIR.
 # In DATADIR should be the subdirectories 'images' and 'truth'.
 DATADIR=${HOME}/data/RomanDESCSims
