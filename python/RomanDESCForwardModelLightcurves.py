@@ -684,6 +684,7 @@ def run_multiple_transients(
     infodir,
     dataset="RomanDESC",
     npix=75,
+    correct_sip=False,
     verbose=False,
     overwrite=True,
 ):
@@ -774,7 +775,7 @@ def run_one_transient(
     infodir,
     dataset="RomanDESC",
     npix=75,
-    correct_sip=True,
+    correct_sip=False,
     verbose=False,
     overwrite=True,
 ):
@@ -1129,7 +1130,8 @@ Used to look up information in 'transient_info_table.ecsv' and 'transient_host_i
     parser.add_argument("--datadir", type=str, help="Location of image and truth files.")
     parser.add_argument("--infodir", type=str, help="Location of SN and host galaxy catalogs.")
     parser.add_argument("--dataset", type=str, default="RomanDESC", choices=["RomanDESC", "DC2"])
-    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("--correct_sip", default=False, action="store_true")
+    parser.add_argument("-v", "--verbose", default=False, action="store_true")
 
     args = parser.parse_args()
 
@@ -1138,6 +1140,7 @@ Used to look up information in 'transient_info_table.ecsv' and 'transient_host_i
         datadir=args.datadir,
         infodir=args.infodir,
         dataset=args.dataset,
+        correct_sip=args.correct_sip,
         verbose=args.verbose,
     )
 
