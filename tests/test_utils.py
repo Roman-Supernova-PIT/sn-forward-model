@@ -13,6 +13,7 @@ from RomanDESCForwardModelLightcurves import (Config,
                                               get_visit_band_detector_for_object_id)
 
 DATASET = "RomanDESCSims"
+INFODIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
 DATADIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
 
 TEST_RUBIN_FILE = os.path.join(os.path.dirname(__file__), "data", "calexp_LSSTCam_r_r_57_5025071600940_R21_S01_u_descdm_preview_data_step1_w_2024_12_20240324T050830Z.fits")
@@ -74,7 +75,7 @@ def test_get_image_and_truth_files():
 
     transient_id = 50006502
     image_info, image_files, truth_files = get_image_and_truth_files(
-        transient_id, DATASET, DATADIR
+        transient_id, DATASET, INFODIR, DATADIR
     )
 
     assert len(image_info["visit"]) == len(image_files)
@@ -87,7 +88,7 @@ def test_get_truth_table():
     transient_id = 50006502
 
     image_info, image_files, truth_files = get_image_and_truth_files(
-        transient_id, DATASET, DATADIR
+        transient_id, DATASET, INFODIR, DATADIR
     )
 
     truth_table = get_truth_table(truth_files, image_info["visit"], transient_id)
