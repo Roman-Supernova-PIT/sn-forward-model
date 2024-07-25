@@ -780,6 +780,7 @@ def run_one_transient(
     npix=75,
     correct_sip=False,
     verbose=False,
+    debug=False,
     overwrite=True,
 ):
     config = Config(dataset)
@@ -893,7 +894,7 @@ def run_one_transient(
                     model_static_band[b] = j
 
             # Define static by locking all parameters to the first in the band.
-            for model in this_object_model:
+            for b, model in zip(image_info["band"], this_object_model):
                 if model.name == this_object_model[model_static_band[b]].name:
                     continue
                 for parameter in ["q", "PA", "n", "Re", "Ie"]:
@@ -967,8 +968,13 @@ def run_one_transient(
     )
 
     # We have to initialize the model so that there is a value for `parameters["center"]`
+    if debug:
+        print("Before init")
+        print(model_host_sn.parameters)
     model_host_sn.initialize()
-    print(model_host_sn.parameters)
+    if debug:
+        print("After init")
+        print(model_host_sn.parameters)
 
     # FIT
     result = ap.fit.LM(model_host_sn, verbose=True).fit()
