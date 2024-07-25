@@ -39,34 +39,36 @@ during_timespan = Timespan(start_time, end_time)
 after_timespan = Timespan(end_time, None)
 
 
-before_dataset_refs = butler.registry.queryDatasets("calexp", htm20=htm_id,
-                                                    band="r",
-                                     where="visit.timespan OVERLAPS my_timespan",
-                                     bind={"my_timespan": before_timespan})
-during_dataset_refs = butler.registry.queryDatasets("calexp", htm20=htm_id,
-                                                    band="r",
-                                     where="visit.timespan OVERLAPS my_timespan",
-                                     bind={"my_timespan": during_timespan})
-after_dataset_refs = butler.registry.queryDatasets("calexp", htm20=htm_id,
-                                                    band="r",
-                                     where="visit.timespan OVERLAPS my_timespan",
-                                     bind={"my_timespan": after_timespan})
+def get_table(htm_id, timespan, band="r", dataset_type="calexp"):
+    """
+    Get table of dataset, list of filepaths
 
-# Realize into list
-before_dataset_refs = list(before_dataset_refs)
-during_dataset_refs = list(during_dataset_refs)
-after_dataset_refs = list(after_dataset_refs)
+    transient_id, instrument, visib, band, detector
+    """
+    dataset_refs = butler.registry.queryDatasets(
+        dataset_type,
+        htm20=htm_id,
+        band=band,
+        where="visit.timespan OVERLAPS my_timespan",
+        bind={"my_timespan": timespan}
+    )
+    # Extract visit, band, detector
+    rows = \
+    [(transient_id, dr.dataId['instrument'], dr.dataId['visit'], dr.dataId['band'], dr.dataId['detector']) for dr in dataset_refs]
+    if len(rows) > 0:
+        dr_table = Table(rows=rows, names=("transient_id", "instrument", "visit", "band", "detector"))
+    else:
+        dr_table = Table()
 
-# Extract visit, band, detector
-rows = \
-[(transient_id, dr.dataId['instrument'], dr.dataId['visit'], dr.dataId['band'], dr.dataId['detector']) for dr in during_dataset_refs]
-ddr_table = Table(rows=rows, names=("transient_id", "instrument", "visit", "band", "detector"))
+    # Get URL (On NERSC these are filepaths)
+    dr_filepaths = [butler.getURI(dr).geturl() for dr in dataset_refs]
 
-before_dataset_refs[
-[f"{transient_id} {dr.dataId['instrument']} {dr.dataId['visit']} {dr.dataId['band']} {dr.dataId['detector']}" for dr in during_dataset_refs]
-before_dataset_refs[
+    return dr_table, dr_filepaths
 
-# Get URL (On NERSC these are filepaths)
-bdr = [butler.getURI(dr).geturl() for dr in before_dataset_refs]
-ddr = [butler.getURI(dr).geturl() for dr in during_dataset_refs]
-adr = [butler.getURI(dr).geturl() for dr in after_dataset_refs]
+
+bdr, bdr_filepaths = get_table(htm_id, before_timespan, band="r", dataset_type="calexp")
+ddr, ddr_filepaths = get_table(htm_id, during_timespan, band="r", dataset_type="calexp")
+adr, adr_filepaths = get_table(htm_id, after_timespan, band="r", dataset_type="calexp")
+bdr.write(f"{transient_id}_image_info_before.csv", overwrite=True)
+ddr.write(f"{transient_id}_image_info_during.csv", overwrite=True)
+adr.write(f"{transient_id}_image_info_after.csv", overwrite=True)
