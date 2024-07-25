@@ -752,21 +752,24 @@ def lock_parameters_to_first_model(model_static, model_sn, bands, model_static_b
 
     Parameters:
     -----------
-    model_static : AstroPhot model.  Will be modified in place
-    model_sn : AstroPhot model.  Will be modified in place
+    model_static : list[list[AstroPhot model]].  [N, M]
+        List of the list of M static sources for each of N images.
+    model_sn : list[AstroPhot model].  [N]  Will be modified in place
+        List of transient model for each of N images.
     bands :
     model_static_band :
     """
-    for b, model in zip(bands, model_static):
-        if model.name == model_static[model_static_band[b]].name:
-            continue
-        for parameter in ["center"]:
-            model[parameter].value = model_static[model_static_band[b]][parameter]
+    for b, model_list in zip(bands, model_static):
+        for model in model_list:
+            if model.name == model_list[model_static_band[b]].name:
+                continue
+            for parameter in ["center"]:
+                model[parameter].value = model_list[model_static_band[b]][parameter]
     for b, model in zip(bands, model_sn):
         if model.name == model_sn[model_static_band[b]].name:
             continue
         for parameter in ["center"]:
-            model[parameter].value = model_static[model_static_band[b]][parameter]
+            model[parameter].value = model_sn[model_static_band[b]][parameter]
 
 
 def run_one_transient(
