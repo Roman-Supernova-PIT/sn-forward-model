@@ -1,10 +1,16 @@
 import os
+import pytest
 
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 import astrophot as ap
 
-from RomanDESCForwardModelLightcurves import make_target, make_window_for_target
+from RomanDESCForwardModelLightcurves import (
+    add_joint_center_parameter,
+    lock_parameters_to_first_model,
+    make_target,
+    make_window_for_target,
+)
 
 DATASET = "RomanDESCSims"
 DATADIR = os.path.join(os.path.dirname(__file__), "..", "data", DATASET)
@@ -79,7 +85,8 @@ def test_make_model():
     print(model.parameters)
 
 
-def test_make_model_multiple_bands():
+@pytest.mark.parametrize("correct_sip", (False, True))
+def test_make_model_multiple_bands(correct_sip):
     """
     Test that we can make an AstroPhot model
 
@@ -107,7 +114,7 @@ def test_make_model_multiple_bands():
     npix = 75
     windows = [make_window_for_target(t, transient_ra, transient_dec, npix) for t in targets]
 
-    host_group_model = [
+    model_static = [
         ap.models.AstroPhot_Model(
             name=f"galaxy model {i}",
             model_type="sersic galaxy model",
@@ -118,7 +125,7 @@ def test_make_model_multiple_bands():
         )
         for i, (t, w) in enumerate(zip(targets, windows))
     ]
-    sn_group_model = [
+    model_sn = [
         ap.models.AstroPhot_Model(
             name=f"SN model {i}",
             model_type="point model",
@@ -131,26 +138,43 @@ def test_make_model_multiple_bands():
         for i, (t, w) in enumerate(zip(targets, windows))
     ]
 
+    bands = ["r", "y"]
+    model_static_band = {}
+    model_static_band["r"] = 0
+    model_static_band["y"] = 1
+    live_sn = [0, 0]
+
+    if correct_sip:
+        add_joint_center_parameter(model_static, model_sn, live_sn, host_xy, transient_xy, True, True)
+    else:
+        lock_parameters_to_first_model(model_static, model_sn, bands, model_static_band)
+
+    all_model_list = []
+    for model_host in model_static:
+        if len(model_host) > 0:
+            host_group_model = ap.models.AstroPhot_Model(
+                name="Host",
+                model_type="group model",
+                models=[*model_host],
+                target=targets,
+            )
+            all_model_list.extend(host_group_model)
+
+    if len(model_sn) > 0:
+        sn_group_model = ap.models.AstroPhot_Model(
+            name="SN",
+            model_type="group model",
+            models=[*model_sn],
+            target=targets,
+        )
+        all_model_list.extend(sn_group_model)
+
     model_host_sn = ap.models.AstroPhot_Model(
         name="Host+SN",
         model_type="group model",
-        models=host_group_model+sn_group_model,
+        models=all_model_list,
         target=targets,
     )
-
-    print("Initialize host model")
-    print("Before init:")
-    print(host_group_model[0].parameters)
-    host_group_model[0].initialize()
-    print("After initialize")
-    print(host_group_model[0].parameters)
-
-    print("Initialize SN model")
-    print("Before init:")
-    print(sn_group_model[0].parameters)
-    sn_group_model[0].initialize()
-    print("After initialize")
-    print(sn_group_model[0].parameters)
 
     print("Initialize Host+SN model")
     print("Before init:")
@@ -159,5 +183,5 @@ def test_make_model_multiple_bands():
     print("After initialize")
     print(model_host_sn.parameters)
 
-
-#    assert model.parameters["PA"] is not None
+    assert model_host_sn["galaxy model 0"]["PA"] is not None
+    assert model_host_sn["galaxy model 1"]["PA"] is not None
