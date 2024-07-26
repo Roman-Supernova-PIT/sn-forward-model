@@ -43,7 +43,7 @@ def get_table(htm_id, timespan, band="r", dataset_type="calexp"):
     """
     Get table of dataset, list of filepaths
 
-    transient_id, instrument, visib, band, detector
+    transient_id, instrument, visib, band, detector, filepath
     """
     dataset_refs = butler.registry.queryDatasets(
         dataset_type,
@@ -53,22 +53,21 @@ def get_table(htm_id, timespan, band="r", dataset_type="calexp"):
         bind={"my_timespan": timespan}
     )
     # Extract visit, band, detector
+    # Get URL (On NERSC these are filepaths)
     rows = \
-    [(transient_id, dr.dataId['instrument'], dr.dataId['visit'], dr.dataId['band'], dr.dataId['detector']) for dr in dataset_refs]
+    [(transient_id, dr.dataId['instrument'], dr.dataId['visit'], dr.dataId['band'], dr.dataId['detector'], butler.getURI(dr).geturl()) for dr in dataset_refs]
     if len(rows) > 0:
-        dr_table = Table(rows=rows, names=("transient_id", "instrument", "visit", "band", "detector"))
+        dr_table = Table(rows=rows, names=("transient_id", "instrument", "visit", "band", "detector", "filepath"))
     else:
         dr_table = Table()
 
-    # Get URL (On NERSC these are filepaths)
-    dr_filepaths = [butler.getURI(dr).geturl() for dr in dataset_refs]
-
-    return dr_table, dr_filepaths
+    return dr_table
 
 
-bdr, bdr_filepaths = get_table(htm_id, before_timespan, band="r", dataset_type="calexp")
-ddr, ddr_filepaths = get_table(htm_id, during_timespan, band="r", dataset_type="calexp")
-adr, adr_filepaths = get_table(htm_id, after_timespan, band="r", dataset_type="calexp")
-bdr.write(f"{transient_id}_image_info_before.csv", overwrite=True)
-ddr.write(f"{transient_id}_image_info_during.csv", overwrite=True)
-adr.write(f"{transient_id}_image_info_after.csv", overwrite=True)
+bdr = get_table(htm_id, before_timespan, band="r", dataset_type="calexp")
+ddr = get_table(htm_id, during_timespan, band="r", dataset_type="calexp")
+adr = get_table(htm_id, after_timespan, band="r", dataset_type="calexp")
+bdr.write(f"{transient_id}_image_info_before.csv", overwrite=True, delimiter=" ")
+ddr.write(f"{transient_id}_image_info_during.csv", overwrite=True, delimiter=" ")
+adr.write(f"{transient_id}_image_info_after.csv", overwrite=True, delimiter=" ")
+

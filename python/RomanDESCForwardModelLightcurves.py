@@ -202,34 +202,43 @@ def get_image_and_truth_files(transient_id, dataset, infodir, datadir):
     roman_image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
     roman_truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{detector}.txt"
 
-    rubin_image_file_format = (
-        "images/calexp/*/{band}/{band}_{detector}/{visit}/"
-        + "calexp_LSSTCam_{band}_{band}_{detector}_{visit}_*_*_*.fits"
-    )
     rubin_truth_file_for_image_format = ""  # No truth
 
     image_file_basenames = []
     truth_file_basenames = []
+    wfi_idx, = np.where(image_info["instrument"] == "WFI")
+    lsstcam_idx, = np.where(image_info["instrument"] == "LSSTCam")
+
     for instrument, visit, band, detector in zip(
-        image_info["instrument"], image_info["visit"], image_info["band"], image_info["detector"]
+        image_info[wfi_idx]["instrument"], image_info[wfi_idx]["visit"], image_info[wfi_idx]["band"], image_info[wfi_idx]["detector"]
     ):
-        if instrument == "WFI":
-            image_file = roman_image_file_format.format(visit=visit, band=band, detector=detector)
-            truth_file = roman_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
-        elif instrument == "LSSTCam":
-            image_file = rubin_image_file_format.format(visit=visit, band=band, detector=detector)
-            truth_file = rubin_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
+        image_file = roman_image_file_format.format(visit=visit, band=band, detector=detector)
+        truth_file = roman_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
+        image_file_basenames.append(image_file)
+        truth_file_basenames.append(truth_file)
+
+    for instrument, visit, band, detector, filepath in zip(
+        image_info[lsstcam_idx]["instrument"], image_info[lsstcam_idx]["visit"], image_info[lsstcam_idx]["band"], image_info[lsstcam_idx]["detector"], image_info[lsstcam_idx]["filepath"]
+    ):
+        if filepath is not None and len(filepath) > 0:
+            image_file = filepath
         else:
-            print(f"Instrument {instrument} unknown.")
+            image_file = rubin_image_file_format.format(visit=visit, band=band, detector=detector)
+
+        # on NERSC truth dir is "/global/cfs/cdirs/descssim/imSim/skyCatalogs_v1.1.2"
+        truth_file = rubin_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
 
         image_file_basenames.append(image_file)
         truth_file_basenames.append(truth_file)
 
     image_files = []
     for bn in image_file_basenames:
-        find_the_file = glob(os.path.join(datadir, bn))
-        if len(find_the_file):
-            image_files.append(find_the_file[0])
+        if os.path.isabs(bn):
+            image_files.append(bn)
+        else:
+            find_the_file = glob(os.path.join(datadir, bn))
+            if len(find_the_file):
+                image_files.append(find_the_file[0])
 
     truth_files = [os.path.join(datadir, bn) for bn in truth_file_basenames]
 
