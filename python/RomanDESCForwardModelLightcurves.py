@@ -194,7 +194,7 @@ def get_transient_info_and_host(transient_id, infodir):
     return transient_info, transient_host
 
 
-def get_image_and_truth_files(transient_id, dataset, infodir, datadir):
+def get_image_and_truth_files(transient_id, infodir, datadir):
     # Get list of images (visit, band, detector) that contain object position
     image_info = get_visit_band_detector_for_object_id(transient_id, infodir)
 
@@ -347,7 +347,7 @@ def read_psfex_image(psfex_info, psfex_data, resample=False, non_negative=True):
     is not robust against future changes.
 
     But you may find that you have an equivalent "get the PSF" function
-    for the dataset of interest to you.
+    for the instrument of interest to you.
     """
     size = psfex_data.data["_size"]
     comp = psfex_data.data["_comp"]
