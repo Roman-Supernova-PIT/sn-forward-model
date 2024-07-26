@@ -612,15 +612,19 @@ def plot_lightcurve(
     ax = axes[0]
 
     for b in np.unique(lightcurve_obs["band"]):
+        if b in color_for_band.keys():
+            color = color_for_band[b]
+        else:
+            color = "blue"
         (idx,) = np.where((lightcurve_obs["band"] == b) & (lightcurve_obs["snr"] > snr_threshold))
         ax.errorbar(
             lightcurve_obs[idx]["mjd"],
             lightcurve_obs[idx]["mag"],
             lightcurve_obs[idx]["mag_err"],
             marker="o",
-            markerfacecolor=color_for_band[b],
-            markeredgecolor=color_for_band[b],
-            ecolor=color_for_band[b],
+            markerfacecolor=color,
+            markeredgecolor=color,
+            ecolor=color,
             linestyle="none",
             label=f"fit {b}",
         )
@@ -642,9 +646,8 @@ def plot_lightcurve(
                 label=f"model {b}",
             )
 
-        ax.set_ylim(ax.get_ylim()[::-1])
-
-        ax.legend(ncols=2)
+    ax.set_ylim(ax.get_ylim()[::-1])
+    ax.legend(ncols=2)
 
     ###
     if lightcurve_truth is not None and len(lightcurve_truth) > 0:
@@ -1019,10 +1022,12 @@ def run_one_transient(
     lightcurve_basename = f"lightcurve_{transient_id}"
     lightcurve_obs = make_lightcurve_from_fit(model_host_sn)
     lightcurve_obs_filename = lightcurve_basename + ".ecsv"
-    if lightcurve_obs_filename is not None:
-        lightcurve_obs.write(lightcurve_obs_filename, overwrite=overwrite)
+    lightcurve_obs.write(lightcurve_obs_filename, overwrite=overwrite)
 
     if len(lightcurve_truth) > 0:
+        lightcurve_truth_filename = lightcurve_basname + "_truth" + ".ecsv"
+        lightcurve_truth.write(lightcurve_truth_filename, overwrite=overwrite)
+
         lightcurve = make_joint_lightcurve_from_obs_and_truth(lightcurve_obs, lightcurve_truth)
     else:
         print("Truth lightcurve empty.")
