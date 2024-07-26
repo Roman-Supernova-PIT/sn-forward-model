@@ -220,10 +220,10 @@ def get_image_and_truth_files(transient_id, dataset, infodir, datadir):
     for instrument, visit, band, detector, filepath in zip(
         image_info[lsstcam_idx]["instrument"], image_info[lsstcam_idx]["visit"], image_info[lsstcam_idx]["band"], image_info[lsstcam_idx]["detector"], image_info[lsstcam_idx]["filepath"]
     ):
-        if filepath is not None and len(filepath) > 0:
+        if os.path.isabs(filepath):
             image_file = filepath
         else:
-            image_file = rubin_image_file_format.format(visit=visit, band=band, detector=detector)
+            image_file = os.path.join(datadir, "images", "repo", filepath)
 
         # on NERSC truth dir is "/global/cfs/cdirs/descssim/imSim/skyCatalogs_v1.1.2"
         truth_file = rubin_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
