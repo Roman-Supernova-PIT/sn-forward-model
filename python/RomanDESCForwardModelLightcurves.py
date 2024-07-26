@@ -515,7 +515,11 @@ def plot_targets(targets, windows, plot_filename=None):
     fig, ax = plt.subplots(side, side, figsize=(3 * side, 3 * side))
 
     for i in range(n):
-        ap.plots.target_image(fig, ax.ravel()[i], targets[i], window=windows[i], flipx=True)
+        try:
+            ap.plots.target_image(fig, ax.ravel()[i], targets[i], window=windows[i], flipx=True)
+        except:
+            print(f"Couldn't plot target {i}: {targets[i]}.")
+            continue
 
     if plot_filename is not None:
         plt.savefig(plot_filename)
