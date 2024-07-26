@@ -70,36 +70,36 @@ from astropy.wcs import FITSFixedWarning, WCS
 
 class Config:
     # These are 4k x 4k images
-    pixel_scale = {"DC2": 0.2, "RomanDESC": 0.11}  # "/pixel
-    fwhm = {"DC2": 0.6, "RomanDESC": 0.2}  # "
+    pixel_scale = {"LSSTCam": 0.2, "WFI": 0.11}  # "/pixel
+    fwhm = {"LSSTCam": 0.6, "WFI": 0.2}  # "
 
-    # The HDU order is different between the two datasets
+    # The HDU order is different between the two instruments
     hdu_idx = {
-        "DC2": {
+        "LSSTCam": {
             "image": 1,
             "mask": 2,
             "variance": 3,
             "psfex_info": 11,
             "psfex_data": 12,
         },
-        "RomanDESC": {"image": 1, "mask": 3, "variance": 2},
+        "WFI": {"image": 1, "mask": 3, "variance": 2},
     }
     # as are the FITS extension names
     hdu_names = {
-        "DC2": {"image": "image", "mask": "mask", "variance": "variance"},
-        "RomanDESC": {"image": "SCI", "mask": "DQ", "variance": "ERR"},
+        "LSSTCam": {"image": "image", "mask": "mask", "variance": "variance"},
+        "WFI": {"image": "SCI", "mask": "DQ", "variance": "ERR"},
     }
     # so we have to use a translation regardless.
 
     # But the variance plane for the Roman images isn't actually right
     # So we use the Image plane for the variance.
-    hdu_idx["RomanDESC"]["variance"] = hdu_idx["RomanDESC"]["image"]
-    hdu_names["RomanDESC"]["variance"] = hdu_names["RomanDESC"]["image"]
+    hdu_idx["WFI"]["variance"] = hdu_idx["WFI"]["image"]
+    hdu_names["WFI"]["variance"] = hdu_names["WFI"]["image"]
 
     # Bad pixel mask values
     bad_pixel_bitmask = {}
-    bad_pixel_bitmask["DC2"] = 0b0
-    bad_pixel_bitmask["RomanDESC"] = 0b1
+    bad_pixel_bitmask["LSSTCam"] = 0b0
+    bad_pixel_bitmask["WFI"] = 0b1
 
     all_config = {
         "fwhm": fwhm,
@@ -109,12 +109,12 @@ class Config:
         "bad_pixel_bitmask": bad_pixel_bitmask,
     }
 
-    def __init__(self, dataset):
-        self.fwhm = self.all_config["fwhm"][dataset]
-        self.pixel_scale = self.all_config["pixel_scale"][dataset]
-        self.hdu_idx = self.all_config["hdu_idx"][dataset]
-        self.hdu_names = self.all_config["hdu_names"][dataset]
-        self.bad_pixel_bitmask = self.all_config["bad_pixel_bitmask"][dataset]
+    def __init__(self, instrument):
+        self.fwhm = self.all_config["fwhm"][instrument]
+        self.pixel_scale = self.all_config["pixel_scale"][instrument]
+        self.hdu_idx = self.all_config["hdu_idx"][instrument]
+        self.hdu_names = self.all_config["hdu_names"][instrument]
+        self.bad_pixel_bitmask = self.all_config["bad_pixel_bitmask"][instrument]
 
 
 def get_visit_band_detector_for_object_id(object_id, infodir):
@@ -206,11 +206,14 @@ def get_image_and_truth_files(transient_id, dataset, infodir, datadir):
 
     image_file_basenames = []
     truth_file_basenames = []
-    wfi_idx, = np.where(image_info["instrument"] == "WFI")
-    lsstcam_idx, = np.where(image_info["instrument"] == "LSSTCam")
+    (wfi_idx,) = np.where(image_info["instrument"] == "WFI")
+    (lsstcam_idx,) = np.where(image_info["instrument"] == "LSSTCam")
 
     for instrument, visit, band, detector in zip(
-        image_info[wfi_idx]["instrument"], image_info[wfi_idx]["visit"], image_info[wfi_idx]["band"], image_info[wfi_idx]["detector"]
+        image_info[wfi_idx]["instrument"],
+        image_info[wfi_idx]["visit"],
+        image_info[wfi_idx]["band"],
+        image_info[wfi_idx]["detector"],
     ):
         image_file = roman_image_file_format.format(visit=visit, band=band, detector=detector)
         truth_file = roman_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
@@ -218,7 +221,11 @@ def get_image_and_truth_files(transient_id, dataset, infodir, datadir):
         truth_file_basenames.append(truth_file)
 
     for instrument, visit, band, detector, filepath in zip(
-        image_info[lsstcam_idx]["instrument"], image_info[lsstcam_idx]["visit"], image_info[lsstcam_idx]["band"], image_info[lsstcam_idx]["detector"], image_info[lsstcam_idx]["filepath"]
+        image_info[lsstcam_idx]["instrument"],
+        image_info[lsstcam_idx]["visit"],
+        image_info[lsstcam_idx]["band"],
+        image_info[lsstcam_idx]["detector"],
+        image_info[lsstcam_idx]["filepath"],
     ):
         if os.path.isabs(filepath):
             image_file = filepath
@@ -492,7 +499,7 @@ def make_target(
     if instrument == "WFI":
         target.header.sim_zptmag = header["ZPTMAG"]
     elif instrument == "LSSTCam":
-        target.header.sim_zptmag = 0.
+        target.header.sim_zptmag = 0.0
 
     return target
 
@@ -578,7 +585,12 @@ def _plot_target_model_single(model, window=None, title=None, figsize=(16, 4)):
 
 
 def plot_lightcurve(
-    lightcurve, lightcurve_obs, lightcurve_truth, transient_id, dataset, snr_threshold=1, plot_filename=None
+    lightcurve,
+    lightcurve_obs,
+    lightcurve_truth,
+    transient_id,
+    snr_threshold=1,
+    plot_filename=None,
 ):
     color_for_band = {
         "u": "purple",
@@ -614,7 +626,7 @@ def plot_lightcurve(
         )
     ax.set_ylabel("mag")
     # ax.set_xlabel("MJD")
-    ax.set_title(f"Proof of Concept: {dataset} {transient_id}")
+    ax.set_title(f"Proof of Concept: {transient_id}")
     plt.ylim(23.5, 19)
 
     if lightcurve_truth is not None and len(lightcurve_truth) > 0:
@@ -697,7 +709,6 @@ def run_multiple_transients(
     transient_ids,
     datadir,
     infodir,
-    dataset="RomanDESC",
     npix=75,
     correct_sip=False,
     verbose=False,
@@ -708,7 +719,6 @@ def run_multiple_transients(
             transient_id,
             datadir,
             infodir,
-            dataset="RomanDESC",
             npix=75,
             verbose=verbose,
             overwrite=True,
@@ -731,6 +741,7 @@ def add_joint_center_parameter(model_static, model_sn, live_sn, host_xy, transie
     fit_host : Are we fitting Host
     fit_sn : Are we fitting SN
     """
+
     def calc_center(params):
         return params["nominal_center"].value + params["astrometric"].value
 
@@ -791,19 +802,16 @@ def run_one_transient(
     transient_id,
     datadir,
     infodir,
-    dataset="RomanDESC",
     npix=75,
     correct_sip=False,
     verbose=False,
     debug=False,
     overwrite=True,
 ):
-    config = Config(dataset)
-
     if verbose:
         print(f"Getting transient and static scene information for {transient_id}.")
     transient_info, transient_host = get_transient_info_and_host(transient_id, infodir)
-    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, dataset, infodir, datadir)
+    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, infodir, datadir)
     lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
     if verbose:
         print(lightcurve_truth)
@@ -814,8 +822,10 @@ def run_one_transient(
         print(f"Building AstroPhot target image list from {len(image_files)} files:")
         print(image_files)
 
-    targets = ap.image.Target_Image_List(
-        make_target(
+    targets = []
+    for instrument, f in zip(image_info["instrument"], image_files):
+        config = Config(instrument)
+        t = make_target(
             f,
             coord=transient_coord,
             fwhm=config.fwhm,
@@ -823,8 +833,8 @@ def run_one_transient(
             hdu_idx=config.hdu_idx,
             bad_pixel_bitmask=config.bad_pixel_bitmask,
         )
-        for f in image_files
-    )
+        targets.append(t)
+    targets = ap.image.Target_Image_List(targets)
 
     for i, target in enumerate(targets):
         target.header.visit = image_info["visit"][i]
@@ -835,7 +845,7 @@ def run_one_transient(
 
     if verbose:
         print("Saving postage stamps from each image.")
-    plot_filename = f"transient_{dataset}_{transient_id}_stamps.png"
+    plot_filename = f"transient_{transient_id}_stamps.png"
     plot_targets(targets, windows, plot_filename)
 
     # The coordinate axes are in arcseconds,
@@ -868,12 +878,12 @@ def run_one_transient(
 
     # The RomanDESC images are "raw" science images with sky.
     # The DC2 image are processed and have had a sky model removed.
-    FIT_SKY = {"DC2": False, "RomanDESC": True}
+    FIT_SKY = {"LSSTCam": False, "WFI": True}
     FIT_HOST = True
     FIT_SN = True
 
-    if FIT_SKY[dataset]:
-        for i, (target, window) in enumerate(zip(targets, windows)):
+    for i, (target, window) in enumerate(zip(targets, windows)):
+        if FIT_SKY[target.header.instrument]:
             model_sky.append(
                 ap.models.AstroPhot_Model(
                     name=f"sky model {i}",
@@ -1006,7 +1016,7 @@ def run_one_transient(
     model_filename = f"Transient_{transient_id}_AstroPhot_model.yaml"
     result.model.save(model_filename)
 
-    lightcurve_basename = f"lightcurve_{dataset}_{transient_id}"
+    lightcurve_basename = f"lightcurve_{transient_id}"
     lightcurve_obs = make_lightcurve_from_fit(model_host_sn)
     lightcurve_obs_filename = lightcurve_basename + ".ecsv"
     if lightcurve_obs_filename is not None:
@@ -1027,12 +1037,11 @@ def run_one_transient(
         lightcurve_obs,
         lightcurve_truth,
         transient_id,
-        dataset,
         plot_filename=plot_filename,
     )
 
     image_file_basenames = [os.path.basename(f) for f in image_files]
-    plot_filename = f"stamps_{dataset}_{transient_id}_model.png"
+    plot_filename = f"stamps_{transient_id}_model.png"
     plot_target_model(
         model_host_sn,
         window=windows,
@@ -1153,7 +1162,6 @@ Used to look up information in 'transient_info_table.ecsv' and 'transient_host_i
     )
     parser.add_argument("--datadir", type=str, help="Location of image and truth files.")
     parser.add_argument("--infodir", type=str, help="Location of SN and host galaxy catalogs.")
-    parser.add_argument("--dataset", type=str, default="RomanDESC", choices=["RomanDESC", "DC2"])
     parser.add_argument("--correct_sip", default=False, action="store_true")
     parser.add_argument("-v", "--verbose", default=False, action="store_true")
 
@@ -1163,7 +1171,6 @@ Used to look up information in 'transient_info_table.ecsv' and 'transient_host_i
         transient_ids=args.transient_id,
         datadir=args.datadir,
         infodir=args.infodir,
-        dataset=args.dataset,
         correct_sip=args.correct_sip,
         verbose=args.verbose,
     )
@@ -1171,11 +1178,3 @@ Used to look up information in 'transient_info_table.ecsv' and 'transient_host_i
 
 if __name__ == "__main__":
     parse_and_run()
-    # transient_id = 30328322
-    # transient_id = 20202893
-    # transient_id = 30005877
-    # transient_id = 30300185
-    # transient_id = 41024123441
-
-    # This one fails to find isophote in initialization.
-    # transient_id = 50006502
