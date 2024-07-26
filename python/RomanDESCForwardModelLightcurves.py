@@ -484,6 +484,7 @@ def make_target(
         target.header.mjd = header["MJD"]
 
     target.header.band = header["FILTER"]
+    target.header.instrument = instrument
     # ZPTMAG is
     #     full_image.header['ZPTMAG']   = 2.5*np.log10(self.exptime*roman.collecting_area)
     # https://github.com/matroxel/roman_imsim/blob/864357c8d088164b9662007f2ebe50e23243368e/roman_imsim/sca.py#L133
@@ -593,6 +594,7 @@ def plot_lightcurve(
         "Y106": "blue",
     }
     color_for_band["H158"] = color_for_band["H"]
+    color_for_band["r_57"] = color_for_band["r"]
 
     _, axes = plt.subplots(2, 1, height_ratios=[2, 1])
     ax = axes[0]
