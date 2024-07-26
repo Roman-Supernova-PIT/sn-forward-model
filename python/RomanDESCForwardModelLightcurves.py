@@ -1025,7 +1025,7 @@ def run_one_transient(
     lightcurve_obs.write(lightcurve_obs_filename, overwrite=overwrite)
 
     if len(lightcurve_truth) > 0:
-        lightcurve_truth_filename = lightcurve_basname + "_truth" + ".ecsv"
+        lightcurve_truth_filename = lightcurve_basename + "_truth" + ".ecsv"
         lightcurve_truth.write(lightcurve_truth_filename, overwrite=overwrite)
 
         lightcurve = make_joint_lightcurve_from_obs_and_truth(lightcurve_obs, lightcurve_truth)
