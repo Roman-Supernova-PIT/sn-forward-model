@@ -455,7 +455,7 @@ def make_target(
             if zeropoint is None:
                 if instrument == "WFI":
                     zeropoint = zp_band[band]  # + 2.5 * np.log10(header["EXPTIME"])
-                elif instrument == "LSSTCAM":
+                elif instrument == "LSSTCam":
                     zeropoint = header["MAGZERO"]
 
             x, y = wcs.world_to_pixel(coord)
