@@ -15,3 +15,4 @@ transient_id ra dec mjd_start mjd_end comment
 30300185 8.53301717 -43.0415779 62300.0 62600.0 "Off-center transient; clear host galaxy."
 50006502 8.5296134 -43.0387536 62000.0 63000.0 "On-center transient; clear host galaxy."
 20202893 8.037774 -42.752337 62236.0 62707.0 "Example SNIa Lauren pointed to."
+1234 8.52941151 -43.0266337 62300.0 62600.0 "Off-center transient, clear host, noticeable background."

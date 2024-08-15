@@ -4,6 +4,7 @@
 # https://webbpsf.readthedocs.io/en/latest/installation.html#installing-the-required-data-files
 #
 astrophot
+healpix
 pyro-ppl
 torch
 webbpsf

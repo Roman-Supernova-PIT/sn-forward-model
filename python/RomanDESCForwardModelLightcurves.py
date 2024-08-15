@@ -59,6 +59,7 @@ import warnings
 
 import astrophot as ap
 import astropy.units as u
+import healpix as hp
 import matplotlib.pyplot as plt
 import numpy as np
 import webbpsf
@@ -136,8 +137,43 @@ def get_visit_band_detector_for_object_id(object_id, infodir):
 
     return image_info[this_object]
 
-
 def get_truth_table(truth_files, visits, transient_id):
+    return get_roman_truth_table(truth_files, visits, transient_id)
+
+
+def get_roman_truth_table(truth_files, visits, transient_id):
+    live_visits = []
+    realized_flux = []
+    flux = []
+    mag = []
+
+    for tf, v in zip(truth_files, visits):
+        if not os.path.isfile(tf):
+            print(f"Truth file {tf} is not a file.")
+            continue
+        this_truth_table = Table.read(tf, format="ascii")
+        idx = this_truth_table["object_id"] == transient_id
+        if sum(idx) == 0:
+            continue
+        transient_entry = this_truth_table[idx]
+        live_visits.append(v)
+        realized_flux.append(transient_entry["realized_flux"][0])
+        flux.append(transient_entry["flux"][0])
+        mag.append(transient_entry["mag"][0])
+
+    truth_table = Table(
+        {
+            "visit": live_visits,
+            "realized_flux": realized_flux,
+            "flux": flux,
+            "mag": mag,
+        }
+    )
+
+    return truth_table
+
+
+def get_rubin_truth_table(truth_files, visits, transient_id):
     live_visits = []
     realized_flux = []
     flux = []
@@ -194,7 +230,7 @@ def get_transient_info_and_host(transient_id, infodir):
     return transient_info, transient_host
 
 
-def get_image_and_truth_files(transient_id, infodir, datadir):
+def get_image_and_truth_files(transient_id, ra, dec, infodir, datadir, nside=32):
     # Get list of images (visit, band, detector) that contain object position
     image_info = get_visit_band_detector_for_object_id(transient_id, infodir)
 
@@ -202,7 +238,8 @@ def get_image_and_truth_files(transient_id, infodir, datadir):
     roman_image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
     roman_truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{detector}.txt"
 
-    rubin_truth_file_for_image_format = ""  # No truth
+    this_healpix = hp.ang2pix(nside, np.deg2rad(ra), np.deg2rad(dec), lonlat=True)
+    rubin_truth_file_for_image_format = f"snana_{this_healpix}.parquet"
 
     image_file_basenames = []
     truth_file_basenames = []
@@ -233,7 +270,7 @@ def get_image_and_truth_files(transient_id, infodir, datadir):
             image_file = os.path.join(datadir, "images", "repo", filepath)
 
         # on NERSC truth dir is "/global/cfs/cdirs/descssim/imSim/skyCatalogs_v1.1.2"
-        truth_file = rubin_truth_file_for_image_format.format(visit=visit, band=band, detector=detector)
+        truth_file = rubin_truth_file_for_image_format.format()
 
         image_file_basenames.append(image_file)
         truth_file_basenames.append(truth_file)
@@ -461,9 +498,9 @@ def make_target(
 
             if zeropoint is None:
                 if instrument == "WFI":
-                    zeropoint = zp_band[band]  # + 2.5 * np.log10(header["EXPTIME"])
+                    zeropoint = zp_band[band]
                 elif instrument == "LSSTCam":
-                    zeropoint = header["MAGZERO"]
+                    zeropoint = header["MAGZERO"]  # + 2.5 * np.log10(header["EXPTIME"])
 
             x, y = wcs.world_to_pixel(coord)
 
@@ -814,7 +851,7 @@ def run_one_transient(
     if verbose:
         print(f"Getting transient and static scene information for {transient_id}.")
     transient_info, transient_host = get_transient_info_and_host(transient_id, infodir)
-    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, infodir, datadir)
+    image_info, image_files, truth_files = get_image_and_truth_files(transient_id, transient_info["ra"], transient_info["dec"], infodir, datadir)
     lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
     if verbose:
         print(lightcurve_truth)
