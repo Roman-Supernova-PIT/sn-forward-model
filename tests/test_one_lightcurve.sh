@@ -13,4 +13,4 @@ oid=30328322
 python python/RomanDESCForwardModelLightcurves.py \
     ${oid} \
     --infodir ${INFODIR} \
-    --datadir ${DATADIR} \
+    --datadir ${DATADIR}
