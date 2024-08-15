@@ -12,7 +12,14 @@ from astropy.table import Table
 
 transient_id = 30328322
 ra, dec = 8.52941151,-43.0266337
+
+transient_id, ra, dec = 30300185, 8.53301717, -43.0415779
 mjd_start, mjd_end = 62300.0, 62600.0
+
+transient_id, ra, dec = 41024123441, 8.535177, -43.041163
+mjd_start, mjd_end = 60000.0, 70000.0
+
+transient_id, ra, dec, mjd_start, mjd_end = 20202893, 8.037774, -42.752337, 62236.0, 62707.0
 
 repo = "/global/cfs/cdirs/lsst/production/gen3/roman-desc-sims/repo"
 collections = ["u/descdm/preview_data_step1_w_2024_12"]
