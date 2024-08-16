@@ -137,11 +137,27 @@ def get_visit_band_detector_for_object_id(object_id, infodir):
 
     return image_info[this_object]
 
-def get_truth_table(truth_files, visits, transient_id):
-    return get_roman_truth_table(truth_files, visits, transient_id)
+
+def get_truth_table(truth_files, instrument, visits, transient_id):
+    """
+    Get the truth flux values for the simulations for supernova Roman images.
+
+    Doesn't do Rubin truth yet, because MWV can't find the per-image truth
+    could refactor in general to do lightcurve model truth that does
+    truth for all of the bands.
+    """
+    w_wfi, = np.where(instrument == "WFI")
+    if len(w_wfi) > 0:
+        wfi_truth = get_roman_truth_table(truth_files[w_wfi], visits[w_wfi], transient_id)
+        truth = wfi_truth
+
+    return truth
 
 
 def get_roman_truth_table(truth_files, visits, transient_id):
+    """
+    Read per-image Roman truth catalogs to get flux before poisson resampling.
+    """
     live_visits = []
     realized_flux = []
     flux = []
@@ -174,6 +190,11 @@ def get_roman_truth_table(truth_files, visits, transient_id):
 
 
 def get_rubin_truth_table(truth_files, visits, transient_id):
+    """
+    Currently incoherent and split between the per-supernova and per-visit models
+
+    But there aren't per-visit values for supernova in the Rubin options.
+    """
     live_visits = []
     realized_flux = []
     flux = []
@@ -183,8 +204,8 @@ def get_rubin_truth_table(truth_files, visits, transient_id):
         if not os.path.isfile(tf):
             print(f"Truth file {tf} is not a file.")
             continue
-        this_truth_table = Table.read(tf, format="ascii")
-        idx = this_truth_table["object_id"] == transient_id
+        this_truth_table = Table.read(tf)
+        idx = this_truth_table["id"] == transient_id
         if sum(idx) == 0:
             continue
         transient_entry = this_truth_table[idx]
@@ -238,8 +259,8 @@ def get_image_and_truth_files(transient_id, ra, dec, infodir, datadir, nside=32)
     roman_image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
     roman_truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{detector}.txt"
 
-    this_healpix = hp.ang2pix(nside, np.deg2rad(ra), np.deg2rad(dec), lonlat=True)
-    rubin_truth_file_for_image_format = f"snana_{this_healpix}.parquet"
+    this_healpix = hp.ang2pix(nside, ra, dec, lonlat=True)
+    rubin_truth_file_for_image_format = f"truth/skyCatalogs_v1.1.2/snana_{this_healpix}.parquet"
 
     image_file_basenames = []
     truth_file_basenames = []
@@ -284,7 +305,7 @@ def get_image_and_truth_files(transient_id, ra, dec, infodir, datadir, nside=32)
             if len(find_the_file):
                 image_files.append(find_the_file[0])
 
-    truth_files = [os.path.join(datadir, bn) for bn in truth_file_basenames]
+    truth_files = np.array([os.path.join(datadir, bn) for bn in truth_file_basenames])
 
     return image_info, image_files, truth_files
 
@@ -852,7 +873,7 @@ def run_one_transient(
         print(f"Getting transient and static scene information for {transient_id}.")
     transient_info, transient_host = get_transient_info_and_host(transient_id, infodir)
     image_info, image_files, truth_files = get_image_and_truth_files(transient_id, transient_info["ra"], transient_info["dec"], infodir, datadir)
-    lightcurve_truth = get_truth_table(truth_files, image_info["visit"], transient_id)
+    lightcurve_truth = get_truth_table(truth_files, image_info["instrument"], image_info["visit"], transient_id)
     if verbose:
         print(lightcurve_truth)
 
