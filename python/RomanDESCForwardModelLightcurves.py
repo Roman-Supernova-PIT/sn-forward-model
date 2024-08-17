@@ -584,7 +584,8 @@ def plot_targets(targets, windows, plot_filename=None):
         try:
             ap.plots.target_image(fig, ax.ravel()[i], targets[i], window=windows[i], flipx=True)
         except:
-            print(f"Couldn't plot target {i}: {targets[i]}.")
+            print(f"Couldn't plot target {i}: {targets[i].header.filename}.")
+            print(f"{targets[i]}")
             continue
 
     if plot_filename is not None:
