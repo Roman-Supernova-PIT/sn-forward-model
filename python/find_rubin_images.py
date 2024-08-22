@@ -161,6 +161,9 @@ def get_table(butler, transient_id, htm_id, timespan, band="r", dataset_type="ca
         where="visit.timespan OVERLAPS my_timespan",
         bind={"my_timespan": timespan},
     )
+    # Remove duplicates
+    dataset_refs = set(dataset_refs)
+
     # Extract visit, band, detector
     # Get URL (On NERSC these are filepaths)
     rows = [
@@ -178,6 +181,7 @@ def get_table(butler, transient_id, htm_id, timespan, band="r", dataset_type="ca
         dr_table = Table(
             rows=rows, names=("transient_id", "instrument", "visit", "band", "detector", "filepath")
         )
+        dr_table.sort("visit")
     else:
         dr_table = Table()
 
