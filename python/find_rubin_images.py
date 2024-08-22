@@ -7,6 +7,7 @@ which doesn not require Sicence Pipelines.
 
 from lsst.daf.butler import Butler, Timespan
 from lsst import sphgeom
+from lsst.geom import Box2D, SpherePoint, radians, degrees
 
 import astropy.time
 from astropy.table import Table
@@ -148,7 +149,7 @@ def get_butler():
     return butler
 
 
-def get_table(butler, transient_id, htm_id, timespan, band="r", dataset_type="calexp"):
+def get_table(butler, transient_id, htm_id, ra, dec, timespan, band="r", dataset_type="calexp", verbose=True):
     """
     Get table of dataset, list of filepaths
 
@@ -164,6 +165,23 @@ def get_table(butler, transient_id, htm_id, timespan, band="r", dataset_type="ca
     # Remove duplicates
     dataset_refs = set(dataset_refs)
 
+    import astropy.units as u
+    coord = SpherePoint(ra, dec, degrees)
+
+    # Check that position is actually in image, not just close
+    confirmed_dataset_refs = []
+    for dr in dataset_refs:
+         exp = butler.get(dr)
+         boxd = Box2D(exp.getBBox())
+         if boxd.contains(exp.getWcs().skyToPixel(coord)):
+             if verbose:
+                 print(f"Point {ra} {dec} in {dr}")
+                 confirmed_dataset_refs.append(dr)
+         else:
+             if verbose:
+                 print(f"Point {ra} {dec} not in {dr}")
+
+
     # Extract visit, band, detector
     # Get URL (On NERSC these are filepaths)
     rows = [
@@ -175,7 +193,7 @@ def get_table(butler, transient_id, htm_id, timespan, band="r", dataset_type="ca
             dr.dataId["detector"],
             butler.getURI(dr).geturl(),
         )
-        for dr in dataset_refs
+        for dr in confirmed_dataset_refs
     ]
     if len(rows) > 0:
         dr_table = Table(
@@ -200,9 +218,9 @@ def get_and_write_matching_observations(butler, transient_id, ra, dec, mjd_start
     during_timespan = Timespan(start_time, end_time)
     after_timespan = Timespan(end_time, None)
 
-    bdr = get_table(butler, transient_id, htm_id, before_timespan, band="r", dataset_type="calexp")
-    ddr = get_table(butler, transient_id, htm_id, during_timespan, band="r", dataset_type="calexp")
-    adr = get_table(butler, transient_id, htm_id, after_timespan, band="r", dataset_type="calexp")
+    bdr = get_table(butler, transient_id, htm_id, ra, dec, before_timespan, band="r", dataset_type="calexp")
+    ddr = get_table(butler, transient_id, htm_id, ra, dec, during_timespan, band="r", dataset_type="calexp")
+    adr = get_table(butler, transient_id, htm_id, ra, dec, after_timespan, band="r", dataset_type="calexp")
     bdr.write(f"{transient_id}_image_info_before.csv", overwrite=True, delimiter=" ")
     ddr.write(f"{transient_id}_image_info_during.csv", overwrite=True, delimiter=" ")
     adr.write(f"{transient_id}_image_info_after.csv", overwrite=True, delimiter=" ")
