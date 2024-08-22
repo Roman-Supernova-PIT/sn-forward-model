@@ -256,7 +256,7 @@ def get_image_and_truth_files(transient_id, ra, dec, infodir, datadir, nside=32)
     image_info = get_visit_band_detector_for_object_id(transient_id, infodir)
 
     # Define and load images and truth
-    roman_image_file_format = "images/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
+    roman_image_file_format = "images/simple_model/{band}/{visit}/Roman_TDS_simple_model_{band}_{visit}_{detector}.fits.gz"
     roman_truth_file_for_image_format = "truth/{band}/{visit}/Roman_TDS_index_{band}_{visit}_{detector}.txt"
 
     this_healpix = hp.ang2pix(nside, ra, dec, lonlat=True)
