@@ -774,6 +774,7 @@ def run_multiple_transients(
     npix=75,
     correct_sip=False,
     verbose=False,
+    debug=False,
     overwrite=True,
 ):
     for transient_id in transient_ids:
@@ -783,6 +784,7 @@ def run_multiple_transients(
             infodir,
             npix=75,
             verbose=verbose,
+            debug=debug,
             overwrite=True,
         )
 
@@ -874,6 +876,9 @@ def run_one_transient(
         print(f"Getting transient and static scene information for {transient_id}.")
     transient_info, transient_host = get_transient_info_and_host(transient_id, infodir)
     image_info, image_files, truth_files = get_image_and_truth_files(transient_id, transient_info["ra"], transient_info["dec"], infodir, datadir)
+    if debug:
+        print("IMAGE_INFO: ", image_info)
+        print("IMAGE_FILES: ", image_files)
     lightcurve_truth = get_truth_table(truth_files, image_info["instrument"], image_info["visit"], transient_id)
     if verbose:
         print(lightcurve_truth)
@@ -1228,6 +1233,7 @@ Used to look up information in 'transient_info_table.ecsv' and 'transient_host_i
     parser.add_argument("--infodir", type=str, help="Location of SN and host galaxy catalogs.")
     parser.add_argument("--correct_sip", default=False, action="store_true")
     parser.add_argument("-v", "--verbose", default=False, action="store_true")
+    parser.add_argument("--debug", default=False, action="store_true")
 
     args = parser.parse_args()
 
@@ -1237,6 +1243,7 @@ Used to look up information in 'transient_info_table.ecsv' and 'transient_host_i
         infodir=args.infodir,
         correct_sip=args.correct_sip,
         verbose=args.verbose,
+        debug=args.debug,
     )
 
 
